@@ -1,0 +1,20 @@
+server:
+  port: "8080"
+  debug: true
+
+database:
+  name: oss
+  host: "127.0.0.1"
+  port: 3306
+  user: root
+  pass:
+
+log:
+  disableStacktrace: false # 是否禁用堆栈跟踪
+  level: "info"            # 日志级别 debug调试 info信息 warn警告 error错误 dpanic严重 panic恐慌 fatal致命
+  name: "oss"              # 日志名称
+  writer: "all"            # 日志输出方式（console, file 或 all）
+  loggerDir: "./logs"      # 日志目录
+  logMaxSize: 10           # 单个日志文件最大大小 单位: MB
+  logMaxAge: 7             # 日志保留天数
+  logCompress: false       # 是否压缩日志文件
