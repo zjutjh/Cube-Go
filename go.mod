@@ -2,6 +2,8 @@ module jh-oss
 
 go 1.22.9
 
+replace github.com/chai2010/webp => github.com/chirino/webp v0.0.0-20240906184250-8b3bed1ecc92
+
 require (
 	github.com/chai2010/webp v1.1.1
 	github.com/dustin/go-humanize v1.0.1
