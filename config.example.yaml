@@ -2,6 +2,9 @@ server:
   port: "8080"
   debug: true
 
+oss:
+  limit: 10  # 文件大小限制 单位: MB
+
 database:
   name: oss
   host: "127.0.0.1"

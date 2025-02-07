@@ -3,11 +3,15 @@ module jh-oss
 go 1.22.9
 
 require (
+	github.com/chai2010/webp v1.1.1
+	github.com/dustin/go-humanize v1.0.1
 	github.com/gin-contrib/cors v1.7.2
 	github.com/gin-gonic/gin v1.10.0
+	github.com/satori/go.uuid v1.2.0
 	github.com/spf13/viper v1.19.0
 	github.com/zjutjh/WeJH-SDK v0.1.2
 	go.uber.org/zap v1.27.0
+	golang.org/x/image v0.24.0
 	gorm.io/driver/mysql v1.5.7
 	gorm.io/gorm v1.25.12
 )
@@ -52,7 +56,7 @@ require (
 	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f // indirect
 	golang.org/x/net v0.34.0 // indirect
 	golang.org/x/sys v0.29.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
+	golang.org/x/text v0.22.0 // indirect
 	google.golang.org/protobuf v1.35.2 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
