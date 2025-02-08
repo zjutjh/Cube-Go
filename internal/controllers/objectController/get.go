@@ -31,13 +31,13 @@ func GetFileList(c *gin.Context) {
 		return
 	}
 
-	relativePath := filepath.Join("static", objectService.CleanLocation(data.Location))
-	if _, err := os.Stat(relativePath); os.IsNotExist(err) {
+	path := filepath.Join("static", objectService.CleanLocation(data.Location))
+	if _, err := os.Stat(path); os.IsNotExist(err) {
 		apiException.AbortWithException(c, apiException.LocationNotFound, err)
 		return
 	}
 
-	fileList, err := os.ReadDir(relativePath)
+	fileList, err := os.ReadDir(path)
 	if err != nil {
 		apiException.AbortWithException(c, apiException.ServerError, err)
 		return

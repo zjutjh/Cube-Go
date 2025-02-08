@@ -9,7 +9,6 @@ import (
 	"jh-oss/internal/midwares"
 	"jh-oss/internal/routes"
 	"jh-oss/pkg/config"
-	"jh-oss/pkg/database"
 	"jh-oss/pkg/log"
 	"jh-oss/pkg/server"
 )
@@ -24,7 +23,6 @@ func main() {
 	r.NoMethod(midwares.HandleNotFound)
 	r.NoRoute(midwares.HandleNotFound)
 	log.Init()
-	database.Init()
 	routes.Init(r)
 
 	// 确保 static 目录存在，如果不存在则创建
