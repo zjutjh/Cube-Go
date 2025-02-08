@@ -26,14 +26,12 @@ var SizeLimit = humanize.MByte * config.Config.GetInt64("oss.limit")
 
 // GenerateObjectKey 通过路径和文件名生成 ObjectKey
 func GenerateObjectKey(location string, filename string, fileExt string) string {
-	// 清理 location
-	loc := strings.TrimRight(strings.TrimLeft(location, "./\\"), "./\\")
+	return path.Join(CleanLocation(location), filename+fileExt)
+}
 
-	// 组合得到 objectKey
-	objectKey := path.Join(loc, filename+fileExt)
-
-	// 最后清理 objectKey
-	return strings.TrimLeft(objectKey, "./")
+// CleanLocation 清理以避免非法路径
+func CleanLocation(location string) string {
+	return strings.TrimRight(strings.TrimLeft(path.Clean(location), "./\\"), "./\\")
 }
 
 // SaveObject 根据 ObjectKey 保存文件

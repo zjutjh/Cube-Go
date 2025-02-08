@@ -10,5 +10,6 @@ func Init(r *gin.Engine) {
 	api := r.Group("/api")
 	{
 		api.POST("/upload", objectController.UploadFile)
+		api.GET("/files", objectController.GetFileList)
 	}
 }
