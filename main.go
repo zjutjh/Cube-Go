@@ -8,10 +8,10 @@ import (
 	"go.uber.org/zap"
 	"jh-oss/internal/midwares"
 	"jh-oss/internal/routes"
-	"jh-oss/internal/utils/server"
 	"jh-oss/pkg/config"
 	"jh-oss/pkg/database"
 	"jh-oss/pkg/log"
+	"jh-oss/pkg/server"
 )
 
 func main() {

@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 	"jh-oss/internal/apiException"
 	"jh-oss/internal/services/objectService"
-	"jh-oss/internal/utils/response"
+	"jh-oss/pkg/response"
 )
 
 type uploadFileData struct {
