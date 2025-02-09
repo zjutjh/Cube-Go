@@ -32,7 +32,8 @@ func GetFileList(c *gin.Context) {
 	}
 
 	path := filepath.Join("static", objectService.CleanLocation(data.Location))
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+	stat, err := os.Stat(path)
+	if os.IsNotExist(err) || !stat.IsDir() {
 		apiException.AbortWithException(c, apiException.LocationNotFound, err)
 		return
 	}
