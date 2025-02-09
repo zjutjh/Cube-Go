@@ -11,5 +11,6 @@ func Init(r *gin.Engine) {
 	{
 		api.POST("/upload", objectController.UploadFile)
 		api.GET("/files", objectController.GetFileList)
+		api.DELETE("/delete", objectController.DeleteFile)
 	}
 }
