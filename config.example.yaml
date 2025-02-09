@@ -4,6 +4,7 @@ server:
 
 oss:
   limit: 10  # 文件大小限制 单位: MB
+  adminKey: ""  # 管理员密钥
 
 log:
   disableStacktrace: false # 是否禁用堆栈跟踪

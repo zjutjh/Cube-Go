@@ -82,6 +82,7 @@ func UploadFile(c *gin.Context) {
 		return
 	}
 
+	zap.L().Info("上传文件成功", zap.String("objectKey", objectKey), zap.String("ip", c.ClientIP()))
 	response.JsonSuccessResp(c, gin.H{
 		"url": "http://" + c.Request.Host + path.Join("/static", objectKey),
 	})

@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"jh-oss/internal/apiException"
+	"jh-oss/pkg/config"
 	"jh-oss/pkg/response"
 )
 
@@ -48,4 +49,14 @@ func HandleNotFound(c *gin.Context) {
 		zap.String("method", c.Request.Method),
 	)
 	response.JsonResp(c, http.StatusNotFound, err.Code, err.Msg, nil)
+}
+
+// Auth 验证权限
+func Auth(c *gin.Context) {
+	key := c.GetHeader("Key")
+	if key != config.Config.GetString("oss.adminKey") { // 验证权限
+		apiException.AbortWithException(c, apiException.NoPermission, nil)
+		return
+	}
+	c.Next()
 }

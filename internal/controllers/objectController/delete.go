@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"jh-oss/internal/apiException"
 	"jh-oss/internal/services/objectService"
 	"jh-oss/pkg/response"
@@ -40,5 +41,6 @@ func DeleteFile(c *gin.Context) {
 		return
 	}
 
+	zap.L().Info("删除文件成功", zap.String("target", target), zap.String("ip", c.ClientIP()))
 	response.JsonSuccessResp(c, nil)
 }

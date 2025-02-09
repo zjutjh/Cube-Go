@@ -23,6 +23,7 @@ var (
 	FileSizeExceedError = NewError(200503, log.LevelInfo, "文件大小超限")
 	FileNotImageError   = NewError(200504, log.LevelInfo, "上传的文件不是图片")
 	LocationNotFound    = NewError(200505, log.LevelInfo, "位置不存在")
+	NoPermission        = NewError(200506, log.LevelInfo, "权限不足")
 
 	NotFound = NewError(200404, log.LevelWarn, http.StatusText(http.StatusNotFound))
 )
