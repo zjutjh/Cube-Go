@@ -1,19 +1,12 @@
 # golangci-lint 配置文件
 
 run:
-  concurrency: 4  # 并行执行的 linter 数量，默认为可用 CPU 数量
-  deadline: 5m  # 分析的最大超时时间，默认为 5 分钟
-  timeout: 10m  # 超时时间
-  issues-exit-code: 1  # 如果发现至少一个问题，退出码为 1
-  tests: true  # 包含测试文件进行分析
+  timeout: 5m  # 分析的最大超时时间
   modules-download-mode: readonly  # 防止分析过程中修改 go.mod 文件
+  allow-parallel-runners: true  # 启用并行分析
 
 output:
-  formats:  # 设置多个输出格式
-    - format: colored-line-number  # 使用颜色化的行号格式
   sort-results: true  # 按文件名和行号排序结果
-  print-issued-lines: true  # 输出包含问题的代码行
-  print-linter-name: true  # 输出 linter 名称
 
 linters-settings:
   errcheck:
@@ -70,8 +63,6 @@ linters-settings:
   goconst:
     min-len: 3  # 字符串常量的最小长度
     min-occurrences: 3  # 触发报告的最小出现次数
-  unused:
-    check-exported: true  # 报告未使用的导出标识符
   unparam:
     check-exported: false  # 检查导出的函数
   nakedret:
@@ -102,6 +93,5 @@ linters:
 
 issues:
   exclude-use-default: false  # 禁用默认排除模式
-  max-per-linter: 0  # 每个 linter 的最大问题数量，设置为 0 禁用限制
+  max-issues-per-linter: 0  # 每个 linter 的最大问题数量，设置为 0 禁用限制
   max-same-issues: 0  # 同一问题的最大数量，设置为 0 禁用限制
-  new: false  # 仅显示新问题，默认为 false
