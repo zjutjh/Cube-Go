@@ -3,6 +3,8 @@ server:
   debug: true
 
 oss:
+  domain: "127.0.0.1:8080"  # OSS 访问地址（含端口）
+  folder: "static"  # OSS 存储文件夹
   limit: 10  # 文件大小限制 单位: MB
   adminKey: ""  # 管理员密钥
 

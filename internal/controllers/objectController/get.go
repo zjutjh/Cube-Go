@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 	"jh-oss/internal/apiException"
 	"jh-oss/internal/services/objectService"
+	"jh-oss/pkg/config"
 	"jh-oss/pkg/response"
 )
 
@@ -31,7 +32,7 @@ func GetFileList(c *gin.Context) {
 		return
 	}
 
-	path := filepath.Join("static", objectService.CleanLocation(data.Location))
+	path := filepath.Join(config.OSSFolder, objectService.CleanLocation(data.Location))
 	stat, err := os.Stat(path)
 	if os.IsNotExist(err) || !stat.IsDir() {
 		apiException.AbortWithException(c, apiException.LocationNotFound, err)

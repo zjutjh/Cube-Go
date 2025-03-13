@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 	"jh-oss/internal/apiException"
 	"jh-oss/internal/services/objectService"
+	"jh-oss/pkg/config"
 	"jh-oss/pkg/response"
 )
 
@@ -29,7 +30,7 @@ func DeleteFile(c *gin.Context) {
 		return
 	}
 
-	filePath := filepath.Join("static", target)
+	filePath := filepath.Join(config.OSSFolder, target)
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		apiException.AbortWithException(c, apiException.LocationNotFound, err)
 		return

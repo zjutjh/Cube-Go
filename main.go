@@ -25,14 +25,13 @@ func main() {
 	log.Init()
 	routes.Init(r)
 
-	// 确保 static 目录存在，如果不存在则创建
-	if _, err := os.Stat("static"); os.IsNotExist(err) {
-		err := os.Mkdir("static", os.ModePerm)
+	// 确保存储文件夹存在，如果不存在则创建
+	if _, err := os.Stat(config.OSSFolder); os.IsNotExist(err) {
+		err := os.Mkdir(config.OSSFolder, os.ModePerm)
 		if err != nil {
 			zap.L().Fatal("Failed to create static directory", zap.Error(err))
 		}
 	}
-	r.Static("/static", "./static") // 挂载静态文件目录
 
 	server.Run(r, ":"+config.Config.GetString("server.port"))
 }

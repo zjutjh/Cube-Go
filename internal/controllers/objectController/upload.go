@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 	"jh-oss/internal/apiException"
 	"jh-oss/internal/services/objectService"
+	"jh-oss/pkg/config"
 	"jh-oss/pkg/response"
 )
 
@@ -84,6 +85,6 @@ func UploadFile(c *gin.Context) {
 
 	zap.L().Info("上传文件成功", zap.String("objectKey", objectKey), zap.String("ip", c.ClientIP()))
 	response.JsonSuccessResp(c, gin.H{
-		"url": "http://" + c.Request.Host + path.Join("/static", objectKey),
+		"url": "http://" + config.Config.GetString("oss.domain") + path.Join("/"+config.OSSFolder, objectKey),
 	})
 }
