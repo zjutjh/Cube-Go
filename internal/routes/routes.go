@@ -8,10 +8,11 @@ import (
 
 // Init 初始化路由
 func Init(r *gin.Engine) {
-	api := r.Group("/api")
+	api := r.Group("/api", midwares.Auth)
 	{
-		api.POST("/upload", midwares.Auth, objectController.UploadFile)
-		api.GET("/files", midwares.Auth, objectController.GetFileList)
-		api.DELETE("/delete", midwares.Auth, objectController.DeleteFile)
+		api.POST("/upload", objectController.UploadFile)
+		api.POST("/batch-upload", objectController.BatchUploadFiles)
+		api.GET("/files", objectController.GetFileList)
+		api.DELETE("/delete", objectController.DeleteFile)
 	}
 }

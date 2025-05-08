@@ -33,5 +33,8 @@ func main() {
 		}
 	}
 
+	// 设置静态文件服务
+	// r.StaticFS("/"+config.OSSFolder, http.Dir(config.OSSFolder))
+
 	server.Run(r, ":"+config.Config.GetString("server.port"))
 }
