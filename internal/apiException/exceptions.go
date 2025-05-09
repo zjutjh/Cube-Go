@@ -24,6 +24,7 @@ var (
 	FileNotImageError   = NewError(200504, log.LevelInfo, "上传的文件不是图片")
 	LocationNotFound    = NewError(200505, log.LevelInfo, "位置不存在")
 	NoPermission        = NewError(200506, log.LevelInfo, "权限不足")
+	FileAlreadyExists   = NewError(200507, log.LevelInfo, "该文件已存在")
 
 	NotFound = NewError(200404, log.LevelWarn, http.StatusText(http.StatusNotFound))
 )

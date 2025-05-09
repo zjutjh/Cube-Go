@@ -5,6 +5,7 @@ import (
 	"image"
 	"io"
 	"mime/multipart"
+	"os"
 	"path"
 	"path/filepath"
 
@@ -18,10 +19,11 @@ import (
 )
 
 type batchUploadFileData struct {
-	Files       []*multipart.FileHeader `form:"files" binding:"required"`
-	Location    string                  `form:"location"`
-	DontConvert bool                    `form:"dont_convert"`
-	RetainName  bool                    `form:"retain_name"`
+	Files          []*multipart.FileHeader `form:"files" binding:"required"`
+	Location       string                  `form:"location"`
+	DontConvert    bool                    `form:"dont_convert"`
+	RetainName     bool                    `form:"retain_name"`
+	AllowOverwrite bool                    `form:"allow_overwrite"`
 }
 
 type uploadFileRespElement struct {
@@ -87,7 +89,12 @@ func BatchUploadFiles(c *gin.Context) {
 
 		// 上传文件
 		objectKey := objectService.GenerateObjectKey(data.Location, name, ext)
-		err = objectService.SaveObject(reader, objectKey)
+		err = objectService.SaveObject(reader, objectKey, data.AllowOverwrite)
+		if errors.Is(err, os.ErrExist) {
+			element.Error = apiException.FileAlreadyExists.Error()
+			results = append(results, element)
+			continue
+		}
 		if err != nil {
 			element.Error = apiException.ServerError.Error()
 			results = append(results, element)
