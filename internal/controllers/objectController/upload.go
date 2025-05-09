@@ -17,13 +17,6 @@ import (
 	"jh-oss/pkg/response"
 )
 
-type uploadFileData struct {
-	File        *multipart.FileHeader `form:"file" binding:"required"`
-	Location    string                `form:"location"`
-	DontConvert bool                  `form:"dont_convert"`
-	RetainName  bool                  `form:"retain_name"`
-}
-
 type batchUploadFileData struct {
 	Files       []*multipart.FileHeader `form:"files" binding:"required"`
 	Location    string                  `form:"location"`
@@ -31,69 +24,10 @@ type batchUploadFileData struct {
 	RetainName  bool                    `form:"retain_name"`
 }
 
-// UploadFile 上传文件
-func UploadFile(c *gin.Context) {
-	var data uploadFileData
-	if err := c.ShouldBind(&data); err != nil {
-		apiException.AbortWithException(c, apiException.ParamError, err)
-		return
-	}
-
-	fileSize := data.File.Size
-	if fileSize > objectService.SizeLimit {
-		apiException.AbortWithException(c, apiException.FileSizeExceedError, nil)
-		return
-	}
-
-	u := uuid.NewV1().String()
-	filename := data.File.Filename
-	ext := filepath.Ext(filename)             // 获取文件扩展名
-	name := filename[:len(filename)-len(ext)] // 获取去掉扩展名的文件名
-
-	// 若不保留文件名，则使用 UUID 作为文件名
-	if !data.RetainName {
-		name = u
-	}
-
-	file, err := data.File.Open()
-	if err != nil {
-		apiException.AbortWithException(c, apiException.UploadFileError, err)
-		return
-	}
-	defer func(file multipart.File) {
-		err := file.Close()
-		if err != nil {
-			zap.L().Warn("文件关闭错误", zap.Error(err))
-		}
-	}(file)
-
-	// 转换到 WebP
-	var reader io.Reader = file
-	if !data.DontConvert {
-		reader, err = objectService.ConvertToWebP(file)
-		ext = ".webp"
-		if errors.Is(err, image.ErrFormat) {
-			apiException.AbortWithException(c, apiException.FileNotImageError, err)
-			return
-		}
-		if err != nil {
-			apiException.AbortWithException(c, apiException.ServerError, err)
-			return
-		}
-	}
-
-	// 上传文件
-	objectKey := objectService.GenerateObjectKey(data.Location, name, ext)
-	err = objectService.SaveObject(reader, objectKey)
-	if err != nil {
-		apiException.AbortWithException(c, apiException.ServerError, err)
-		return
-	}
-
-	zap.L().Info("上传文件成功", zap.String("objectKey", objectKey), zap.String("ip", c.ClientIP()))
-	response.JsonSuccessResp(c, gin.H{
-		"url": "http://" + config.Config.GetString("oss.domain") + path.Join("/"+config.OSSFolder, objectKey),
-	})
+type uploadFileRespElement struct {
+	Filename string `json:"filename"`
+	Url      string `json:"url,omitempty"`
+	Error    string `json:"error,omitempty"`
 }
 
 // BatchUploadFiles 批量上传文件
@@ -104,19 +38,16 @@ func BatchUploadFiles(c *gin.Context) {
 		return
 	}
 
-	if len(data.Files) == 1 && data.Files[0].Size == 0 {
-		apiException.AbortWithException(c, apiException.UploadFileError, nil)
-		return
-	}
-
-	results := make([]gin.H, 0)
+	results := make([]uploadFileRespElement, 0)
 	for _, fileHeader := range data.Files {
+		element := uploadFileRespElement{
+			Filename: fileHeader.Filename,
+		}
+
 		fileSize := fileHeader.Size
 		if fileSize > objectService.SizeLimit {
-			results = append(results, gin.H{
-				"filename": fileHeader.Filename,
-				"error":    apiException.FileSizeExceedError.Error(),
-			})
+			element.Error = apiException.FileSizeExceedError.Error()
+			results = append(results, element)
 			continue
 		}
 
@@ -132,10 +63,8 @@ func BatchUploadFiles(c *gin.Context) {
 
 		file, err := fileHeader.Open()
 		if err != nil {
-			results = append(results, gin.H{
-				"filename": fileHeader.Filename,
-				"error":    apiException.UploadFileError.Error(),
-			})
+			element.Error = apiException.UploadFileError.Error()
+			results = append(results, element)
 			continue
 		}
 
@@ -145,17 +74,13 @@ func BatchUploadFiles(c *gin.Context) {
 			reader, err = objectService.ConvertToWebP(file)
 			ext = ".webp"
 			if errors.Is(err, image.ErrFormat) {
-				results = append(results, gin.H{
-					"filename": fileHeader.Filename,
-					"error":    apiException.FileNotImageError.Error(),
-				})
+				element.Error = apiException.FileNotImageError.Error()
+				results = append(results, element)
 				continue
 			}
 			if err != nil {
-				results = append(results, gin.H{
-					"filename": fileHeader.Filename,
-					"error":    apiException.ServerError.Error(),
-				})
+				element.Error = apiException.ServerError.Error()
+				results = append(results, element)
 				continue
 			}
 		}
@@ -164,24 +89,18 @@ func BatchUploadFiles(c *gin.Context) {
 		objectKey := objectService.GenerateObjectKey(data.Location, name, ext)
 		err = objectService.SaveObject(reader, objectKey)
 		if err != nil {
-			results = append(results, gin.H{
-				"filename": fileHeader.Filename,
-				"error":    apiException.ServerError.Error(),
-			})
+			element.Error = apiException.ServerError.Error()
+			results = append(results, element)
 			continue
 		}
 
-		results = append(results, gin.H{
-			"filename": fileHeader.Filename,
-			"url":      "http://" + config.Config.GetString("oss.domain") + path.Join("/"+config.OSSFolder, objectKey),
-		})
+		element.Url = "http://" + config.Config.GetString("oss.domain") + path.Join("/"+config.OSSFolder, objectKey)
+		results = append(results, element)
 
 		zap.L().Info("上传文件成功", zap.String("objectKey", objectKey), zap.String("ip", c.ClientIP()))
 
 		// 关闭文件
-		if err := file.Close(); err != nil {
-			zap.L().Warn("文件关闭错误", zap.Error(err))
-		}
+		_ = file.Close()
 	}
 
 	response.JsonSuccessResp(c, gin.H{
