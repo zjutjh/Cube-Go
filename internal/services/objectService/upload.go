@@ -31,7 +31,12 @@ func GenerateObjectKey(location string, filename string, fileExt string) string 
 
 // CleanLocation 清理以避免非法路径
 func CleanLocation(location string) string {
-	return strings.TrimLeft(path.Clean(location), "./\\")
+	loc := location
+	invalidChars := []string{":", "*", "?", "<", ">", "|", "\""}
+	for _, char := range invalidChars {
+		loc = strings.ReplaceAll(loc, char, "")
+	}
+	return strings.TrimLeft(path.Clean(loc), "./\\")
 }
 
 // SaveObject 根据 ObjectKey 保存文件

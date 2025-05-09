@@ -13,5 +13,6 @@ func Init(r *gin.Engine) {
 		api.POST("/upload", objectController.BatchUploadFiles)
 		api.GET("/files", objectController.GetFileList)
 		api.DELETE("/delete", objectController.DeleteFile)
+		api.POST("/create-dir", objectController.CreateDir)
 	}
 }
