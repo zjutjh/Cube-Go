@@ -14,6 +14,7 @@ import (
 
 	"github.com/chai2010/webp"
 	"github.com/dustin/go-humanize"
+	"github.com/gabriel-vasile/mimetype"
 	"go.uber.org/zap"
 	_ "golang.org/x/image/bmp" // 注册解码器
 	_ "golang.org/x/image/tiff"
@@ -86,4 +87,28 @@ func ConvertToWebP(reader io.Reader) (io.Reader, error) {
 		return nil, err
 	}
 	return bytes.NewReader(buf.Bytes()), nil
+}
+
+// GetFileType 根据 MIME 类型判断文件类型
+func GetFileType(filePath string, isDir bool) string {
+	if isDir {
+		return "dir"
+	}
+
+	mime, err := mimetype.DetectFile(filePath)
+	if err != nil {
+		return "binary"
+	}
+
+	mimeType := mime.String()
+	switch {
+	case strings.HasPrefix(mimeType, "text/"):
+		return "text"
+	case mimeType == "application/json":
+		return "json"
+	case strings.HasPrefix(mimeType, "image/"):
+		return "image"
+	default:
+		return "binary"
+	}
 }

@@ -1,6 +1,7 @@
 package objectController
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -15,8 +16,8 @@ import (
 
 type fileListElement struct {
 	Name         string `json:"name"`
-	Size         int64  `json:"size"`
-	IsDir        bool   `json:"is_dir"`
+	Size         string `json:"size"`
+	Type         string `json:"type"`
 	LastModified string `json:"last_modified"`
 }
 
@@ -53,10 +54,12 @@ func GetFileList(c *gin.Context) {
 			continue
 		}
 
+		fullPath := filepath.Join(path, fileInfo.Name())
+		sizeKB := float64(fileInfo.Size()) / 1024
 		list = append(list, fileListElement{
 			Name:         fileInfo.Name(),
-			Size:         fileInfo.Size() / 1024, // 转换为 KB
-			IsDir:        fileInfo.IsDir(),
+			Size:         fmt.Sprintf("%.2f", sizeKB), // 保留两位小数
+			Type:         objectService.GetFileType(fullPath, fileInfo.IsDir()),
 			LastModified: fileInfo.ModTime().Format(time.RFC3339),
 		})
 	}
