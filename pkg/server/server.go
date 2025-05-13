@@ -9,8 +9,19 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
+
+// InitCORS 初始化 CORS 中间件
+func InitCORS() gin.HandlerFunc {
+	config := cors.DefaultConfig()
+	config.AllowAllOrigins = true
+	config.AllowCredentials = true
+	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Key"}
+	return cors.New(config)
+}
 
 // Run 运行 Http 服务器
 func Run(handler http.Handler, addr string) {
