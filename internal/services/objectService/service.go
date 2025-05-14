@@ -112,3 +112,8 @@ func GetFileType(filePath string, isDir bool) string {
 		return "binary"
 	}
 }
+
+// GenerateFileURL 生成文件的访问 URL
+func GenerateFileURL(objectKey string) string {
+	return "http://" + config.Config.GetString("oss.domain") + path.Join("/"+config.OSSFolder, objectKey)
+}

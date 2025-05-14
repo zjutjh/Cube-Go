@@ -3,6 +3,7 @@ package objectController
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"time"
 
@@ -19,28 +20,30 @@ type fileListElement struct {
 	Size         string `json:"size"`
 	Type         string `json:"type"`
 	LastModified string `json:"last_modified"`
+	Url          string `json:"url"`
 }
 
 type getFileListData struct {
-	Location string `json:"location"`
+	Location string `form:"location"`
 }
 
 // GetFileList 获取文件列表
 func GetFileList(c *gin.Context) {
 	var data getFileListData
-	if err := c.ShouldBindJSON(&data); err != nil {
+	if err := c.ShouldBindQuery(&data); err != nil {
 		apiException.AbortWithException(c, apiException.ParamError, err)
 		return
 	}
 
-	path := filepath.Join(config.OSSFolder, objectService.CleanLocation(data.Location))
-	stat, err := os.Stat(path)
+	loc := objectService.CleanLocation(data.Location)
+	filePath := filepath.Join(config.OSSFolder, loc)
+	stat, err := os.Stat(filePath)
 	if os.IsNotExist(err) || !stat.IsDir() {
 		apiException.AbortWithException(c, apiException.LocationNotFound, err)
 		return
 	}
 
-	fileList, err := os.ReadDir(path)
+	fileList, err := os.ReadDir(filePath)
 	if err != nil {
 		apiException.AbortWithException(c, apiException.ServerError, err)
 		return
@@ -54,13 +57,14 @@ func GetFileList(c *gin.Context) {
 			continue
 		}
 
-		fullPath := filepath.Join(path, fileInfo.Name())
+		fullPath := filepath.Join(filePath, fileInfo.Name())
 		sizeKB := float64(fileInfo.Size()) / 1024
 		list = append(list, fileListElement{
 			Name:         fileInfo.Name(),
 			Size:         fmt.Sprintf("%.2f", sizeKB), // 保留两位小数
 			Type:         objectService.GetFileType(fullPath, fileInfo.IsDir()),
 			LastModified: fileInfo.ModTime().Format(time.RFC3339),
+			Url:          objectService.GenerateFileURL(path.Join(loc, fileInfo.Name())),
 		})
 	}
 
