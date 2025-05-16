@@ -31,15 +31,7 @@ func initS3Connections() error {
 	}
 
 	for _, c := range cfgList {
-		err := s3Manager.AddConnection(&s3ConnectionConfig{
-			Name:            c.Name,
-			Endpoint:        c.Endpoint,
-			AccessKeyId:     c.AccessKeyId,
-			SecretAccessKey: c.SecretAccessKey,
-			Region:          c.Region,
-			UseSSL:          c.UseSSL,
-			UsePathStyle:    c.UsePathStyle,
-		})
+		err := s3Manager.AddConnection(&c)
 		if err != nil {
 			return err
 		}

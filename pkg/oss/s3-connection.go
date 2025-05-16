@@ -18,16 +18,6 @@ type S3ConnectionManager struct {
 	sync.RWMutex
 }
 
-type s3ConnectionConfig struct {
-	Name            string
-	Endpoint        string
-	Region          string
-	AccessKeyId     string
-	SecretAccessKey string
-	UseSSL          bool
-	UsePathStyle    bool
-}
-
 // 定义连接相关错误
 var (
 	ErrConnectionAlreadyExists = errors.New("connection already exists")
@@ -35,7 +25,7 @@ var (
 )
 
 // AddConnection 添加连接
-func (m *S3ConnectionManager) AddConnection(c *s3ConnectionConfig) error {
+func (m *S3ConnectionManager) AddConnection(c *s3ConfigElement) error {
 	if m.connections[c.Name] != nil {
 		return ErrConnectionAlreadyExists
 	}
