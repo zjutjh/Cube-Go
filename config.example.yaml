@@ -2,9 +2,29 @@ server:
   port: "8080"
   debug: true
 
+bucket:
+  -
+    name: "local"
+    type: "local"
+    path: "/static"
+  -
+    name: "test"
+    type: "s3"
+    target: "minio"
+    bucketName: "test"
+
+s3: # 此处可挂载多个 S3 连接
+  -
+    name: "minio"
+    endpoint: ""
+    accessKeyId: "YOUR_ACCESS_KEY"
+    secretAccessKey: "YOUR_SECRET_KEY"
+    region: ""
+    useSSL: false
+    usePathStyle: true
+
 oss:
   domain: "127.0.0.1:8080"  # OSS 访问地址（含端口）
-  folder: "static"  # OSS 存储文件夹
   limit: 10  # 文件大小限制 单位: MB
   adminKey: ""  # 管理员密钥
 
