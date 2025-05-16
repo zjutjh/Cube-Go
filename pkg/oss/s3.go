@@ -1,6 +1,7 @@
 package oss
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"strings"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/gabriel-vasile/mimetype"
 )
 
 // S3StorageProvider S3存储提供者
@@ -25,16 +27,28 @@ func NewS3StorageProvider(target string, bucketName string) StorageProvider {
 }
 
 // SaveObject 存储对象
-func (p *S3StorageProvider) SaveObject(reader io.Reader, objectKey string) error {
+func (p *S3StorageProvider) SaveObject(r io.Reader, objectKey string) error {
 	client, err := s3Manager.GetConnection(p.target)
 	if err != nil {
 		return err
 	}
 
+	// 缓存数据以获取文件类型
+	data, _ := io.ReadAll(r)
+	buf := bytes.NewBuffer(data)
+	mime, err := mimetype.DetectReader(buf)
+	if err != nil {
+		return err
+	}
+
+	// 重置指针到开头供后续使用
+	reader := bytes.NewReader(data)
+
 	_, err = client.PutObject(context.Background(), &s3.PutObjectInput{
-		Bucket: aws.String(p.bucketName),
-		Key:    aws.String(objectKey),
-		Body:   reader,
+		Bucket:      aws.String(p.bucketName),
+		Key:         aws.String(objectKey),
+		Body:        reader,
+		ContentType: aws.String(mime.String()),
 	})
 
 	return err
@@ -74,28 +88,57 @@ func (p *S3StorageProvider) GetObject(objectKey string) (io.ReadCloser, error) {
 }
 
 // GetFileList 获取文件列表
-func (p *S3StorageProvider) GetFileList(prefix string) ([]FileListElement, error) {
+func (p *S3StorageProvider) GetFileList(pf string) ([]FileListElement, error) {
+	prefix := pf
+	if prefix != "" && !strings.HasSuffix(prefix, "/") {
+		prefix = prefix + "/"
+	}
+
 	client, err := s3Manager.GetConnection(p.target)
 	if err != nil {
 		return nil, err
 	}
 
 	result, err := client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{
-		Bucket: aws.String(p.bucketName),
-		Prefix: aws.String(prefix),
+		Bucket:    aws.String(p.bucketName),
+		Prefix:    aws.String(prefix),
+		Delimiter: aws.String("/"), // 限制当前层级
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	fileList := make([]FileListElement, 0)
+
+	// 处理子文件夹
+	for _, cp := range result.CommonPrefixes {
+		commonPrefix := aws.ToString(cp.Prefix)
+		folderName := strings.TrimSuffix(strings.TrimPrefix(commonPrefix, prefix), "/")
+		fileList = append(fileList, FileListElement{
+			LastModified: "",
+			Name:         folderName,
+			ObjectKey:    "",
+			Size:         0,
+			Type:         "dir",
+		})
+	}
+
+	// 处理文件
 	for _, file := range result.Contents {
+		key := aws.ToString(file.Key)
+		name := strings.TrimPrefix(key, prefix)
+
+		// 检查是否属于当前层级（去掉 prefix 后不包含 '/'）
+		if strings.Contains(name, "/") {
+			continue // 跳过子文件夹中的文件
+		}
+
 		fileList = append(fileList, FileListElement{
 			LastModified: aws.ToTime(file.LastModified).Format(time.RFC3339),
-			Name:         strings.TrimPrefix(aws.ToString(file.Key), prefix),
-			ObjectKey:    aws.ToString(file.Key),
+			Name:         name,
+			ObjectKey:    key,
 			Size:         aws.ToInt64(file.Size),
-			Type:         p.getS3FileType(aws.ToString(file.Key)),
+			Type:         p.getS3FileType(key),
 		})
 	}
 

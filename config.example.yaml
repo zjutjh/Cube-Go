@@ -4,24 +4,28 @@ server:
 
 bucket:
   -
-    name: "local"
+    name: "forum"
     type: "local"
-    path: "/static"
+    path: "/forum"
+  -
+    name: "wjh"
+    type: "local"
+    path: "/wjh"
   -
     name: "test"
     type: "s3"
     target: "minio"
-    bucketName: "test"
+    bucketName: "test"  # 请确保该 bucket 已存在
 
 s3: # 此处可挂载多个 S3 连接
   -
     name: "minio"
-    endpoint: ""
+    endpoint: "http://127.0.0.1:9000"
     accessKeyId: "YOUR_ACCESS_KEY"
     secretAccessKey: "YOUR_SECRET_KEY"
-    region: ""
+    region: "cn"  # 如果不知道就随便填
     useSSL: false
-    usePathStyle: true
+    usePathStyle: true  # 参考服务商设置
 
 oss:
   domain: "127.0.0.1:8080"  # OSS 访问地址（含端口）
