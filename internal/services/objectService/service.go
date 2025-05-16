@@ -28,12 +28,18 @@ func GenerateObjectKey(location string, filename string, fileExt string) string 
 
 // CleanLocation 清理以避免非法路径
 func CleanLocation(location string) string {
+	isDir := strings.HasSuffix(location, "/")
 	loc := location
 	invalidChars := []string{":", "*", "?", "<", ">", "|", "\""}
 	for _, char := range invalidChars {
 		loc = strings.ReplaceAll(loc, char, "")
 	}
-	return strings.TrimLeft(path.Clean(loc), "./\\")
+
+	result := strings.TrimLeft(path.Clean(loc), "./\\")
+	if isDir {
+		result += "/"
+	}
+	return result
 }
 
 // ConvertToWebP 将图片转换为 WebP 格式

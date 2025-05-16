@@ -1,7 +1,6 @@
 package oss
 
 import (
-	"errors"
 	"io"
 	"os"
 	"path"
@@ -12,9 +11,6 @@ import (
 	"github.com/gabriel-vasile/mimetype"
 	"go.uber.org/zap"
 )
-
-// ErrLocationNotFound 本地存储位置未找到
-var ErrLocationNotFound = errors.New("location not found")
 
 // LocalStorageProvider 本地存储提供者
 type LocalStorageProvider struct {
@@ -63,22 +59,15 @@ func (p *LocalStorageProvider) DeleteObject(objectKey string) error {
 	// 根据 objectKey 解析出文件的路径
 	relativePath := filepath.Join(p.path, objectKey)
 
-	// 删除文件
-	err := os.RemoveAll(relativePath)
-	if err != nil {
-		return err
+	// 检查文件是否存在
+	_, err := os.Stat(relativePath)
+	if os.IsNotExist(err) {
+		return os.ErrNotExist
 	}
 
-	// 删除父文件夹，如果该文件夹为空
-	parentDir := filepath.Dir(relativePath)
-	entries, err := os.ReadDir(parentDir)
-	if err != nil {
-		return err
-	}
-	if len(entries) == 0 {
-		return os.Remove(parentDir)
-	}
-	return nil
+	// 删除文件
+	err = os.RemoveAll(relativePath)
+	return err
 }
 
 // GetObject 获取对象
@@ -99,7 +88,7 @@ func (p *LocalStorageProvider) GetFileList(prefix string) ([]FileListElement, er
 	filePath := filepath.Join(p.path, prefix)
 	stat, err := os.Stat(filePath)
 	if os.IsNotExist(err) || !stat.IsDir() {
-		return nil, ErrLocationNotFound
+		return nil, os.ErrNotExist
 	}
 
 	fileList, err := os.ReadDir(filePath)
@@ -115,12 +104,16 @@ func (p *LocalStorageProvider) GetFileList(prefix string) ([]FileListElement, er
 			continue
 		}
 
+		key := path.Join(prefix, fileInfo.Name())
+		if file.IsDir() {
+			key += "/"
+		}
 		list = append(list, FileListElement{
 			Name:         fileInfo.Name(),
 			Size:         fileInfo.Size(),
 			Type:         getLocalFileType(filepath.Join(filePath, fileInfo.Name()), file.IsDir()),
 			LastModified: fileInfo.ModTime().Format(time.RFC3339),
-			ObjectKey:    path.Join(prefix, fileInfo.Name()),
+			ObjectKey:    key,
 		})
 	}
 	return list, nil

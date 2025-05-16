@@ -1,6 +1,9 @@
 package objectController
 
 import (
+	"errors"
+	"os"
+
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"jh-oss/internal/apiException"
@@ -35,6 +38,10 @@ func DeleteFile(c *gin.Context) {
 	}
 
 	err = bucket.DeleteObject(target)
+	if errors.Is(err, os.ErrNotExist) {
+		apiException.AbortWithException(c, apiException.ResourceNotFound, err)
+		return
+	}
 	if err != nil {
 		apiException.AbortWithException(c, apiException.ServerError, err)
 		return

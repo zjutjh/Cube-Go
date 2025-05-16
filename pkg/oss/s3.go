@@ -9,6 +9,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/gabriel-vasile/mimetype"
 )
 
@@ -61,11 +62,15 @@ func (p *S3StorageProvider) DeleteObject(objectKey string) error {
 		return err
 	}
 
+	// 如果为文件夹
+	if strings.HasSuffix(objectKey, "/") {
+		return deleteFolderContents(client, p.bucketName, objectKey)
+	}
+
 	_, err = client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
 		Bucket: aws.String(p.bucketName),
 		Key:    aws.String(objectKey),
 	})
-
 	return err
 }
 
@@ -117,7 +122,7 @@ func (p *S3StorageProvider) GetFileList(pf string) ([]FileListElement, error) {
 		fileList = append(fileList, FileListElement{
 			LastModified: "",
 			Name:         folderName,
-			ObjectKey:    "",
+			ObjectKey:    commonPrefix,
 			Size:         0,
 			Type:         "dir",
 		})
@@ -138,21 +143,16 @@ func (p *S3StorageProvider) GetFileList(pf string) ([]FileListElement, error) {
 			Name:         name,
 			ObjectKey:    key,
 			Size:         aws.ToInt64(file.Size),
-			Type:         p.getS3FileType(key),
+			Type:         getS3FileType(client, p.bucketName, key),
 		})
 	}
 
 	return fileList, nil
 }
 
-func (p *S3StorageProvider) getS3FileType(objectKey string) string {
-	client, err := s3Manager.GetConnection(p.target)
-	if err != nil {
-		return "binary"
-	}
-
+func getS3FileType(client *s3.Client, bucketName string, objectKey string) string {
 	headOutput, err := client.HeadObject(context.TODO(), &s3.HeadObjectInput{
-		Bucket: aws.String(p.bucketName),
+		Bucket: aws.String(bucketName),
 		Key:    aws.String(objectKey),
 	})
 	if err != nil {
@@ -170,4 +170,32 @@ func (p *S3StorageProvider) getS3FileType(objectKey string) string {
 	default:
 		return "binary"
 	}
+}
+
+func deleteFolderContents(client *s3.Client, bucketName string, prefix string) error {
+	// 列出文件夹下所有对象
+	listResult, err := client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{
+		Bucket: aws.String(bucketName),
+		Prefix: aws.String(prefix),
+	})
+	if err != nil {
+		return err
+	}
+
+	if len(listResult.Contents) == 0 {
+		return nil // 文件夹为空
+	}
+
+	// 构建删除对象列表
+	objects := make([]types.ObjectIdentifier, 0)
+	for _, obj := range listResult.Contents {
+		objects = append(objects, types.ObjectIdentifier{Key: obj.Key})
+	}
+
+	// 批量删除
+	_, err = client.DeleteObjects(context.Background(), &s3.DeleteObjectsInput{
+		Bucket: aws.String(bucketName),
+		Delete: &types.Delete{Objects: objects},
+	})
+	return err
 }

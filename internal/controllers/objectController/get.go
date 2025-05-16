@@ -2,6 +2,7 @@ package objectController
 
 import (
 	"errors"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	"jh-oss/internal/apiException"
@@ -31,8 +32,8 @@ func GetFileList(c *gin.Context) {
 
 	loc := objectService.CleanLocation(data.Location)
 	fileList, err := bucket.GetFileList(loc)
-	if errors.Is(err, oss.ErrLocationNotFound) {
-		apiException.AbortWithException(c, apiException.LocationNotFound, err)
+	if errors.Is(err, os.ErrNotExist) {
+		apiException.AbortWithException(c, apiException.ResourceNotFound, err)
 		return
 	}
 	if err != nil {
