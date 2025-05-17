@@ -43,6 +43,9 @@ func (p *LocalStorageProvider) SaveObject(reader io.Reader, objectKey string) er
 	if err != nil {
 		return err
 	}
+	defer func() {
+		_ = outFile.Close()
+	}()
 
 	// 写入文件
 	_, err = io.Copy(outFile, reader)
@@ -50,7 +53,6 @@ func (p *LocalStorageProvider) SaveObject(reader io.Reader, objectKey string) er
 		return err
 	}
 
-	_ = outFile.Close()
 	return nil
 }
 
@@ -62,7 +64,7 @@ func (p *LocalStorageProvider) DeleteObject(objectKey string) error {
 	// 检查文件是否存在
 	_, err := os.Stat(relativePath)
 	if os.IsNotExist(err) {
-		return os.ErrNotExist
+		return ErrResourceNotExists
 	}
 
 	// 删除文件
@@ -71,16 +73,35 @@ func (p *LocalStorageProvider) DeleteObject(objectKey string) error {
 }
 
 // GetObject 获取对象
-func (p *LocalStorageProvider) GetObject(objectKey string) (io.ReadCloser, error) {
+func (p *LocalStorageProvider) GetObject(objectKey string) (io.ReadCloser, *GetObjectInfo, error) {
 	// 根据 objectKey 解析出文件路径
 	relativePath := filepath.Join(p.path, objectKey)
+
+	// 检查文件是否存在
+	stat, err := os.Stat(relativePath)
+	if os.IsNotExist(err) || stat.IsDir() {
+		return nil, nil, ErrResourceNotExists
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+
+	mime, err := mimetype.DetectFile(relativePath)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	// 读取文件
 	file, err := os.Open(relativePath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return file, nil
+
+	info := &GetObjectInfo{
+		ContentLength: stat.Size(),
+		ContentType:   mime.String(),
+	}
+	return file, info, nil
 }
 
 // GetFileList 获取文件列表
@@ -88,7 +109,7 @@ func (p *LocalStorageProvider) GetFileList(prefix string) ([]FileListElement, er
 	filePath := filepath.Join(p.path, prefix)
 	stat, err := os.Stat(filePath)
 	if os.IsNotExist(err) || !stat.IsDir() {
-		return nil, os.ErrNotExist
+		return nil, ErrResourceNotExists
 	}
 
 	fileList, err := os.ReadDir(filePath)

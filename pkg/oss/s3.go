@@ -3,6 +3,7 @@ package oss
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"strings"
 	"time"
@@ -75,10 +76,10 @@ func (p *S3StorageProvider) DeleteObject(objectKey string) error {
 }
 
 // GetObject 获取对象
-func (p *S3StorageProvider) GetObject(objectKey string) (io.ReadCloser, error) {
+func (p *S3StorageProvider) GetObject(objectKey string) (io.ReadCloser, *GetObjectInfo, error) {
 	client, err := s3Manager.GetConnection(p.target)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	result, err := client.GetObject(context.Background(), &s3.GetObjectInput{
@@ -86,10 +87,18 @@ func (p *S3StorageProvider) GetObject(objectKey string) (io.ReadCloser, error) {
 		Key:    aws.String(objectKey),
 	})
 	if err != nil {
-		return nil, err
+		var noSuchKey *types.NoSuchKey
+		if errors.As(err, &noSuchKey) {
+			return nil, nil, ErrResourceNotExists
+		}
+		return nil, nil, err
 	}
 
-	return result.Body, nil
+	info := &GetObjectInfo{
+		ContentLength: aws.ToInt64(result.ContentLength),
+		ContentType:   aws.ToString(result.ContentType),
+	}
+	return result.Body, info, nil
 }
 
 // GetFileList 获取文件列表

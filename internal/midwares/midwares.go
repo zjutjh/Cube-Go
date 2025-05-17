@@ -25,15 +25,9 @@ func ErrHandler() gin.HandlerFunc {
 				var apiErr *apiException.Error
 
 				// 尝试将错误转换为 Exception
-				ok := errors.As(err, &apiErr)
-
-				// 如果转换失败，则使用 ServerError
-				if !ok {
-					apiErr = apiException.ServerError
-					zap.L().Error("Unknown error occurred", zap.Error(err))
+				if errors.As(err, &apiErr) {
+					response.JsonErrorResp(c, apiErr.Code, apiErr.Msg)
 				}
-
-				response.JsonErrorResp(c, apiErr.Code, apiErr.Msg)
 				return
 			}
 		}
