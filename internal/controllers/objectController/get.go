@@ -80,3 +80,10 @@ func GetFile(c *gin.Context) {
 
 	c.DataFromReader(http.StatusOK, content.ContentLength, content.ContentType, obj, nil)
 }
+
+// GetBucketList 获取存储桶列表
+func GetBucketList(c *gin.Context) {
+	response.JsonSuccessResp(c, gin.H{
+		"bucket_list": oss.Buckets.GetBucketList(),
+	})
+}
