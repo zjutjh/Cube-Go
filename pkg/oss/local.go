@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gabriel-vasile/mimetype"
+	"github.com/pkg/xattr"
 	"go.uber.org/zap"
 )
 
@@ -43,17 +44,20 @@ func (p *LocalStorageProvider) SaveObject(reader io.Reader, objectKey string) er
 	if err != nil {
 		return err
 	}
-	defer func() {
-		_ = outFile.Close()
-	}()
 
 	// 写入文件
 	_, err = io.Copy(outFile, reader)
 	if err != nil {
 		return err
 	}
+	_ = outFile.Close()
 
-	return nil
+	// 尝试保存 MIME 类型到 xattr
+	mime, err := mimetype.DetectFile(relativePath)
+	if err == nil {
+		_ = xattr.Set(relativePath, "user.mimetype", []byte(mime.String()))
+	}
+	return err
 }
 
 // DeleteObject 删除对象
@@ -86,11 +90,6 @@ func (p *LocalStorageProvider) GetObject(objectKey string) (io.ReadCloser, *GetO
 		return nil, nil, err
 	}
 
-	mime, err := mimetype.DetectFile(relativePath)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	// 读取文件
 	file, err := os.Open(relativePath)
 	if err != nil {
@@ -99,7 +98,7 @@ func (p *LocalStorageProvider) GetObject(objectKey string) (io.ReadCloser, *GetO
 
 	info := &GetObjectInfo{
 		ContentLength: stat.Size(),
-		ContentType:   mime.String(),
+		ContentType:   getMimeType(relativePath),
 	}
 	return file, info, nil
 }
@@ -140,17 +139,24 @@ func (p *LocalStorageProvider) GetFileList(prefix string) ([]FileListElement, er
 	return list, nil
 }
 
+func getMimeType(filePath string) string {
+	t, err := xattr.Get(filePath, "user.mimetype")
+	if err == nil {
+		return string(t)
+	}
+	mime, err := mimetype.DetectFile(filePath)
+	if err != nil {
+		return "application/octet-stream"
+	}
+	return mime.String()
+}
+
 func getLocalFileType(filePath string, isDir bool) string {
 	if isDir {
 		return "dir"
 	}
 
-	mime, err := mimetype.DetectFile(filePath)
-	if err != nil {
-		return "binary"
-	}
-
-	mimeType := mime.String()
+	mimeType := getMimeType(filePath)
 	switch {
 	case strings.HasPrefix(mimeType, "text/"):
 		return "text"

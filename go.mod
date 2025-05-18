@@ -12,6 +12,7 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.8
 	github.com/gin-contrib/cors v1.7.3
 	github.com/gin-gonic/gin v1.10.0
+	github.com/pkg/xattr v0.4.10
 	github.com/satori/go.uuid v1.2.0
 	github.com/spf13/viper v1.20.1
 	github.com/zjutjh/WeJH-SDK v0.2.2

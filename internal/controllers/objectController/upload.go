@@ -20,8 +20,8 @@ type batchUploadFileData struct {
 	Files       []*multipart.FileHeader `form:"files" binding:"required"`
 	Bucket      string                  `form:"bucket" binding:"required"`
 	Location    string                  `form:"location"`
-	DontConvert bool                    `form:"dont_convert"`
-	RetainName  bool                    `form:"retain_name"`
+	ConvertWebP bool                    `form:"convert_webp"`
+	UseUUID     bool                    `form:"use_uuid"`
 }
 
 type uploadFileRespElement struct {
@@ -57,14 +57,13 @@ func BatchUploadFiles(c *gin.Context) {
 			continue
 		}
 
-		u := uuid.NewV1().String()
 		filename := fileHeader.Filename
 		ext := filepath.Ext(filename)             // 获取文件扩展名
 		name := filename[:len(filename)-len(ext)] // 获取去掉扩展名的文件名
 
 		// 若不保留文件名，则使用 UUID 作为文件名
-		if !data.RetainName {
-			name = u
+		if data.UseUUID {
+			name = uuid.NewV1().String()
 		}
 
 		file, err := fileHeader.Open()
@@ -76,7 +75,7 @@ func BatchUploadFiles(c *gin.Context) {
 
 		// 转换到 WebP
 		var reader io.Reader = file
-		if !data.DontConvert {
+		if data.ConvertWebP {
 			reader, err = objectService.ConvertToWebP(file)
 			ext = ".webp"
 			if errors.Is(err, image.ErrFormat) {
