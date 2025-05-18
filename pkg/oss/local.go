@@ -53,11 +53,13 @@ func (p *LocalStorageProvider) SaveObject(reader io.Reader, objectKey string) er
 	_ = outFile.Close()
 
 	// 尝试保存 MIME 类型到 xattr
-	mime, err := mimetype.DetectFile(relativePath)
-	if err == nil {
-		_ = xattr.Set(relativePath, "user.mimetype", []byte(mime.String()))
+	if xattr.XATTR_SUPPORTED {
+		mime, err := mimetype.DetectFile(relativePath)
+		if err == nil {
+			_ = xattr.Set(relativePath, "user.mimetype", []byte(mime.String()))
+		}
 	}
-	return err
+	return nil
 }
 
 // DeleteObject 删除对象
@@ -140,9 +142,11 @@ func (p *LocalStorageProvider) GetFileList(prefix string) ([]FileListElement, er
 }
 
 func getMimeType(filePath string) string {
-	t, err := xattr.Get(filePath, "user.mimetype")
-	if err == nil {
-		return string(t)
+	if xattr.XATTR_SUPPORTED {
+		t, err := xattr.Get(filePath, "user.mimetype")
+		if err == nil && len(t) > 0 {
+			return string(t)
+		}
 	}
 	mime, err := mimetype.DetectFile(filePath)
 	if err != nil {
