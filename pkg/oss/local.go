@@ -29,7 +29,7 @@ func NewLocalStorageProvider(p string) StorageProvider {
 }
 
 // SaveObject 保存对象到本地存储
-func (p *LocalStorageProvider) SaveObject(reader io.Reader, objectKey string) error {
+func (p *LocalStorageProvider) SaveObject(reader io.ReadSeeker, objectKey string) error {
 	// 根据 objectKey 解析出文件的路径
 	relativePath := filepath.Join(p.path, objectKey)
 
@@ -54,7 +54,8 @@ func (p *LocalStorageProvider) SaveObject(reader io.Reader, objectKey string) er
 
 	// 尝试保存 MIME 类型到 xattr
 	if xattr.XATTR_SUPPORTED {
-		mime, err := mimetype.DetectFile(relativePath)
+		_, _ = reader.Seek(0, io.SeekStart)
+		mime, err := mimetype.DetectReader(reader)
 		if err == nil {
 			_ = xattr.Set(relativePath, "user.mimetype", []byte(mime.String()))
 		}
@@ -92,15 +93,15 @@ func (p *LocalStorageProvider) GetObject(objectKey string) (io.ReadCloser, *GetO
 		return nil, nil, err
 	}
 
+	info := &GetObjectInfo{
+		ContentLength: stat.Size(),
+		ContentType:   getMimeType(relativePath),
+	}
+
 	// 读取文件
 	file, err := os.Open(relativePath)
 	if err != nil {
 		return nil, nil, err
-	}
-
-	info := &GetObjectInfo{
-		ContentLength: stat.Size(),
-		ContentType:   getMimeType(relativePath),
 	}
 	return file, info, nil
 }

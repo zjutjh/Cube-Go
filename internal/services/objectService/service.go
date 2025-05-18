@@ -43,7 +43,7 @@ func CleanLocation(location string) string {
 }
 
 // ConvertToWebP 将图片转换为 WebP 格式
-func ConvertToWebP(reader io.Reader) (io.Reader, error) {
+func ConvertToWebP(reader io.Reader) (*bytes.Reader, error) {
 	img, _, err := image.Decode(reader)
 	if err != nil {
 		return nil, err

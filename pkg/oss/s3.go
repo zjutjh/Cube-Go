@@ -1,7 +1,6 @@
 package oss
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -29,22 +28,17 @@ func NewS3StorageProvider(target string, bucketName string) StorageProvider {
 }
 
 // SaveObject 存储对象
-func (p *S3StorageProvider) SaveObject(r io.Reader, objectKey string) error {
+func (p *S3StorageProvider) SaveObject(reader io.ReadSeeker, objectKey string) error {
 	client, err := s3Manager.GetConnection(p.target)
 	if err != nil {
 		return err
 	}
 
-	// 缓存数据以获取文件类型
-	data, _ := io.ReadAll(r)
-	buf := bytes.NewBuffer(data)
-	mime, err := mimetype.DetectReader(buf)
+	mime, err := mimetype.DetectReader(reader)
 	if err != nil {
 		return err
 	}
-
-	// 重置指针到开头供后续使用
-	reader := bytes.NewReader(data)
+	_, _ = reader.Seek(0, io.SeekStart)
 
 	_, err = client.PutObject(context.Background(), &s3.PutObjectInput{
 		Bucket:      aws.String(p.bucketName),
@@ -148,7 +142,7 @@ func (p *S3StorageProvider) GetFileList(pf string) ([]FileListElement, error) {
 		}
 
 		fileList = append(fileList, FileListElement{
-			LastModified: aws.ToTime(file.LastModified).Format(time.RFC3339),
+			LastModified: aws.ToTime(file.LastModified).Local().Format(time.RFC3339),
 			Name:         name,
 			ObjectKey:    key,
 			Size:         aws.ToInt64(file.Size),

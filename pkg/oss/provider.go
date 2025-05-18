@@ -7,7 +7,7 @@ import (
 
 // StorageProvider 定义存储服务接口
 type StorageProvider interface {
-	SaveObject(reader io.Reader, objectKey string) error
+	SaveObject(reader io.ReadSeeker, objectKey string) error
 	DeleteObject(objectKey string) error
 	GetObject(objectKey string) (io.ReadCloser, *GetObjectInfo, error)
 	GetFileList(prefix string) ([]FileListElement, error)

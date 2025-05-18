@@ -61,7 +61,7 @@ func BatchUploadFiles(c *gin.Context) {
 		ext := filepath.Ext(filename)             // 获取文件扩展名
 		name := filename[:len(filename)-len(ext)] // 获取去掉扩展名的文件名
 
-		// 若不保留文件名，则使用 UUID 作为文件名
+		// 若使用 UUID 作为文件名
 		if data.UseUUID {
 			name = uuid.NewV1().String()
 		}
@@ -74,7 +74,7 @@ func BatchUploadFiles(c *gin.Context) {
 		}
 
 		// 转换到 WebP
-		var reader io.Reader = file
+		var reader io.ReadSeeker = file
 		if data.ConvertWebP {
 			reader, err = objectService.ConvertToWebP(file)
 			ext = ".webp"
