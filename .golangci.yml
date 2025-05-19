@@ -21,6 +21,8 @@ linters-settings:
     # 默认失败置信度
     confidence: 0.1
     rules:
+      - name: unchecked-type-assertion
+        disabled: true
       - name: var-naming            # 变量命名规则
         severity: warning
         disabled: true

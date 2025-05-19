@@ -8,7 +8,9 @@ import (
 	_ "image/png"
 	"io"
 	"path"
+	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/chai2010/webp"
 	"github.com/dustin/go-humanize"
@@ -21,6 +23,14 @@ import (
 // SizeLimit 上传大小限制
 var SizeLimit = humanize.MiByte * config.Config.GetInt64("oss.limit")
 
+var invalidCharRegex = regexp.MustCompile(`[:*?"<>|]`)
+
+var bufferPool = sync.Pool{
+	New: func() any {
+		return new(bytes.Buffer)
+	},
+}
+
 // GenerateObjectKey 通过路径和文件名生成 ObjectKey
 func GenerateObjectKey(location string, filename string, fileExt string) string {
 	return path.Join(CleanLocation(location), filename+fileExt)
@@ -29,12 +39,7 @@ func GenerateObjectKey(location string, filename string, fileExt string) string 
 // CleanLocation 清理以避免非法路径
 func CleanLocation(location string) string {
 	isDir := strings.HasSuffix(location, "/")
-	loc := location
-	invalidChars := []string{":", "*", "?", "<", ">", "|", "\""}
-	for _, char := range invalidChars {
-		loc = strings.ReplaceAll(loc, char, "")
-	}
-
+	loc := invalidCharRegex.ReplaceAllString(location, "")
 	result := strings.TrimLeft(path.Clean(loc), "./\\")
 	if isDir {
 		result += "/"
@@ -49,8 +54,11 @@ func ConvertToWebP(reader io.Reader) (*bytes.Reader, error) {
 		return nil, err
 	}
 
-	var buf bytes.Buffer
-	err = webp.Encode(&buf, img, &webp.Options{Quality: 100})
+	buf, _ := bufferPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer bufferPool.Put(buf)
+
+	err = webp.Encode(buf, img, &webp.Options{Quality: 100})
 	if err != nil {
 		return nil, err
 	}

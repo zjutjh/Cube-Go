@@ -119,7 +119,7 @@ func (p *LocalStorageProvider) GetFileList(prefix string) ([]FileListElement, er
 		return nil, err
 	}
 
-	list := make([]FileListElement, 0)
+	list := make([]FileListElement, 0, len(fileList))
 	for _, file := range fileList {
 		fileInfo, err := file.Info()
 		if err != nil {
