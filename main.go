@@ -1,14 +1,13 @@
 package main
 
 import (
-	"os"
-
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"jh-oss/internal/midwares"
 	"jh-oss/internal/routes"
 	"jh-oss/pkg/config"
 	"jh-oss/pkg/log"
+	"jh-oss/pkg/oss"
 	"jh-oss/pkg/server"
 )
 
@@ -22,18 +21,9 @@ func main() {
 	r.NoMethod(midwares.HandleNotFound)
 	r.NoRoute(midwares.HandleNotFound)
 	log.Init()
-	routes.Init(r)
-
-	// 确保存储文件夹存在，如果不存在则创建
-	if _, err := os.Stat(config.OSSFolder); os.IsNotExist(err) {
-		err := os.Mkdir(config.OSSFolder, os.ModePerm)
-		if err != nil {
-			zap.L().Fatal("Failed to create static directory", zap.Error(err))
-		}
+	if err := oss.Init(); err != nil {
+		zap.L().Fatal("Init OSS failed", zap.Error(err))
 	}
-
-	// 设置静态文件服务
-	r.Static("/"+config.OSSFolder, "./"+config.OSSFolder)
-
+	routes.Init(r)
 	server.Run(r, ":"+config.Config.GetString("server.port"))
 }

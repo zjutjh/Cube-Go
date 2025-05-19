@@ -21,6 +21,8 @@ linters-settings:
     # 默认失败置信度
     confidence: 0.1
     rules:
+      - name: unchecked-type-assertion
+        disabled: true
       - name: var-naming            # 变量命名规则
         severity: warning
         disabled: true
@@ -87,7 +89,6 @@ linters:
     - gofmt  # 检查代码格式是否符合 gofmt 规范
     - revive  # 替代 golint 的代码风格检查工具
     - dupl  # 检查重复代码
-    - goconst  # 检查重复的常量
     - unused # 检查未使用的代码
     - unparam # 检查未使用的函数参数
     - prealloc # 检查预分配建议

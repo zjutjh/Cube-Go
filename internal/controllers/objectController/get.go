@@ -1,30 +1,24 @@
 package objectController
 
 import (
-	"fmt"
-	"os"
-	"path"
-	"path/filepath"
-	"time"
+	"errors"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 	"jh-oss/internal/apiException"
 	"jh-oss/internal/services/objectService"
-	"jh-oss/pkg/config"
+	"jh-oss/pkg/oss"
 	"jh-oss/pkg/response"
 )
 
-type fileListElement struct {
-	Name         string `json:"name"`
-	Size         string `json:"size"`
-	Type         string `json:"type"`
-	LastModified string `json:"last_modified"`
-	Url          string `json:"url"`
+type getFileListData struct {
+	Bucket   string `form:"bucket" binding:"required"`
+	Location string `form:"location"`
 }
 
-type getFileListData struct {
-	Location string `form:"location"`
+type getFileData struct {
+	Bucket    string `form:"bucket" binding:"required"`
+	ObjectKey string `form:"object_key" binding:"required"`
 }
 
 // GetFileList 获取文件列表
@@ -35,40 +29,61 @@ func GetFileList(c *gin.Context) {
 		return
 	}
 
-	loc := objectService.CleanLocation(data.Location)
-	filePath := filepath.Join(config.OSSFolder, loc)
-	stat, err := os.Stat(filePath)
-	if os.IsNotExist(err) || !stat.IsDir() {
-		apiException.AbortWithException(c, apiException.LocationNotFound, err)
+	bucket, err := oss.Buckets.GetBucket(data.Bucket)
+	if err != nil {
+		apiException.AbortWithException(c, apiException.BucketNotFound, err)
 		return
 	}
 
-	fileList, err := os.ReadDir(filePath)
+	loc := objectService.CleanLocation(data.Location)
+	fileList, err := bucket.GetFileList(loc)
+	if errors.Is(err, oss.ErrResourceNotExists) {
+		apiException.AbortWithException(c, apiException.ResourceNotFound, err)
+		return
+	}
 	if err != nil {
 		apiException.AbortWithException(c, apiException.ServerError, err)
 		return
 	}
 
-	list := make([]fileListElement, 0)
-	for _, file := range fileList {
-		fileInfo, err := file.Info()
-		if err != nil {
-			zap.L().Error("获取文件信息错误", zap.Error(err))
-			continue
-		}
+	response.JsonSuccessResp(c, gin.H{
+		"file_list": fileList,
+	})
+}
 
-		fullPath := filepath.Join(filePath, fileInfo.Name())
-		sizeKB := float64(fileInfo.Size()) / 1024
-		list = append(list, fileListElement{
-			Name:         fileInfo.Name(),
-			Size:         fmt.Sprintf("%.2f", sizeKB), // 保留两位小数
-			Type:         objectService.GetFileType(fullPath, fileInfo.IsDir()),
-			LastModified: fileInfo.ModTime().Format(time.RFC3339),
-			Url:          objectService.GenerateFileURL(path.Join(loc, fileInfo.Name())),
-		})
+// GetFile 下载文件
+func GetFile(c *gin.Context) {
+	var data getFileData
+	if err := c.ShouldBindQuery(&data); err != nil {
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
 	}
 
+	bucket, err := oss.Buckets.GetBucket(data.Bucket)
+	if err != nil {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+
+	obj, content, err := bucket.GetObject(data.ObjectKey)
+	if errors.Is(err, oss.ErrResourceNotExists) {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	defer func() {
+		_ = obj.Close()
+	}()
+
+	c.DataFromReader(http.StatusOK, content.ContentLength, content.ContentType, obj, nil)
+}
+
+// GetBucketList 获取存储桶列表
+func GetBucketList(c *gin.Context) {
 	response.JsonSuccessResp(c, gin.H{
-		"file_list": list,
+		"bucket_list": oss.Buckets.GetBucketList(),
 	})
 }
