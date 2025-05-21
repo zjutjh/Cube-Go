@@ -37,8 +37,8 @@ func GetFileList(c *gin.Context) {
 
 	loc := objectService.CleanLocation(data.Location)
 	fileList, err := bucket.GetFileList(loc)
-	if errors.Is(err, oss.ErrResourceNotExists) {
-		apiException.AbortWithException(c, apiException.ResourceNotFound, err)
+	if errors.Is(err, oss.ErrPathIsNotDir) {
+		apiException.AbortWithException(c, apiException.ParamError, err)
 		return
 	}
 	if err != nil {

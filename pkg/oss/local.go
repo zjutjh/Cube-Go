@@ -110,8 +110,11 @@ func (p *LocalStorageProvider) GetObject(objectKey string) (io.ReadCloser, *GetO
 func (p *LocalStorageProvider) GetFileList(prefix string) ([]FileListElement, error) {
 	filePath := filepath.Join(p.path, prefix)
 	stat, err := os.Stat(filePath)
-	if os.IsNotExist(err) || !stat.IsDir() {
-		return nil, ErrResourceNotExists
+	if os.IsNotExist(err) {
+		return []FileListElement{}, nil
+	}
+	if !stat.IsDir() {
+		return nil, ErrPathIsNotDir
 	}
 
 	fileList, err := os.ReadDir(filePath)

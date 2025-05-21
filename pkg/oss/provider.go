@@ -31,4 +31,6 @@ type GetObjectInfo struct {
 var (
 	// ErrResourceNotExists 资源不存在
 	ErrResourceNotExists = errors.New("resource not exists")
+	// ErrPathIsNotDir 路径不是目录
+	ErrPathIsNotDir = errors.New("path is not dir")
 )
