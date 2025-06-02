@@ -76,7 +76,16 @@ func (p *LocalStorageProvider) DeleteObject(objectKey string) error {
 
 	// 删除文件
 	err = os.RemoveAll(relativePath)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// 如果文件夹为空则尝试删除文件夹
+	dir := filepath.Dir(relativePath)
+	if dir != p.path {
+		_ = os.Remove(dir)
+	}
+	return nil
 }
 
 // GetObject 获取对象
