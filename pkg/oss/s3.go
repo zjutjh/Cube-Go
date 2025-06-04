@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
 	"github.com/gabriel-vasile/mimetype"
 )
 
@@ -45,8 +46,14 @@ func (p *S3StorageProvider) SaveObject(reader io.ReadSeeker, objectKey string) e
 		Key:         aws.String(objectKey),
 		Body:        reader,
 		ContentType: aws.String(mime.String()),
+		IfNoneMatch: aws.String("*"),
 	})
-
+	if err != nil {
+		var ae smithy.APIError
+		if errors.As(err, &ae) && ae.ErrorCode() == "PreconditionFailed" {
+			return ErrFileAlreadyExists
+		}
+	}
 	return err
 }
 

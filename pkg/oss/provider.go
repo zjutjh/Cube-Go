@@ -33,4 +33,6 @@ var (
 	ErrResourceNotExists = errors.New("resource not exists")
 	// ErrPathIsNotDir 路径不是目录
 	ErrPathIsNotDir = errors.New("path is not dir")
+	// ErrFileAlreadyExists 文件已存在
+	ErrFileAlreadyExists = errors.New("file already exists")
 )

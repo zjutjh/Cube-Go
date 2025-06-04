@@ -112,6 +112,10 @@ func handleSingleUpload(
 	// 上传文件
 	objectKey := objectService.GenerateObjectKey(data.Location, name, ext)
 	err = bucket.SaveObject(reader, objectKey)
+	if errors.Is(err, oss.ErrFileAlreadyExists) {
+		element.Error = apiException.FileAlreadyExists.Error()
+		return element
+	}
 	if err != nil {
 		element.Error = apiException.ServerError.Error()
 		return element

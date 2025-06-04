@@ -33,8 +33,14 @@ func (p *LocalStorageProvider) SaveObject(reader io.ReadSeeker, objectKey string
 	// 根据 objectKey 解析出文件的路径
 	relativePath := filepath.Join(p.path, objectKey)
 
+	// 检查文件是否已经存在
+	_, err := os.Stat(relativePath)
+	if err == nil {
+		return ErrFileAlreadyExists
+	}
+
 	// 创建文件夹，如果文件夹不存在
-	err := os.MkdirAll(filepath.Dir(relativePath), os.ModePerm)
+	err = os.MkdirAll(filepath.Dir(relativePath), os.ModePerm)
 	if err != nil {
 		return err
 	}
