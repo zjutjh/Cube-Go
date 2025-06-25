@@ -1,14 +1,14 @@
 package main
 
 import (
+	"cube-go/internal/midwares"
+	"cube-go/internal/routes"
+	"cube-go/pkg/config"
+	"cube-go/pkg/log"
+	"cube-go/pkg/oss"
+	"cube-go/pkg/server"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-	"jh-oss/internal/midwares"
-	"jh-oss/internal/routes"
-	"jh-oss/pkg/config"
-	"jh-oss/pkg/log"
-	"jh-oss/pkg/oss"
-	"jh-oss/pkg/server"
 )
 
 func main() {

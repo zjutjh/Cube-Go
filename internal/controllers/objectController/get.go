@@ -4,11 +4,11 @@ import (
 	"errors"
 	"net/http"
 
+	"cube-go/internal/apiException"
+	"cube-go/internal/services/objectService"
+	"cube-go/pkg/oss"
+	"cube-go/pkg/response"
 	"github.com/gin-gonic/gin"
-	"jh-oss/internal/apiException"
-	"jh-oss/internal/services/objectService"
-	"jh-oss/pkg/oss"
-	"jh-oss/pkg/response"
 )
 
 type getFileListData struct {

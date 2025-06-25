@@ -3,8 +3,8 @@ package oss
 import (
 	"sync"
 
+	"cube-go/pkg/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"jh-oss/pkg/config"
 )
 
 var s3Manager = S3ConnectionManager{

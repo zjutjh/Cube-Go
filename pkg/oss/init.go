@@ -4,7 +4,7 @@ import (
 	"errors"
 	"sync"
 
-	"jh-oss/pkg/config"
+	"cube-go/pkg/config"
 )
 
 type bucketConfigElement struct {

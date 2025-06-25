@@ -1,9 +1,9 @@
 package routes
 
 import (
+	"cube-go/internal/controllers/objectController"
+	"cube-go/internal/midwares"
 	"github.com/gin-gonic/gin"
-	"jh-oss/internal/controllers/objectController"
-	"jh-oss/internal/midwares"
 )
 
 // Init 初始化路由

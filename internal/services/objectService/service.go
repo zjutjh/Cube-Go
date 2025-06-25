@@ -12,12 +12,12 @@ import (
 	"strings"
 	"sync"
 
+	"cube-go/pkg/config"
 	"github.com/chai2010/webp"
 	"github.com/dustin/go-humanize"
 	_ "golang.org/x/image/bmp" // 注册解码器
 	_ "golang.org/x/image/tiff"
 	_ "golang.org/x/image/webp"
-	"jh-oss/pkg/config"
 )
 
 // SizeLimit 上传大小限制

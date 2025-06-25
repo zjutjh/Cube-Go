@@ -12,18 +12,16 @@ jobs:
 
       - name: Set up Go
         uses: actions/setup-go@v5
-        with:
-          go-version: 1.22
 
       - name: Build
         run: |
           go install src.techknowlogick.com/xgo@latest
-          xgo -out magicube --targets=*/amd64 .
+          xgo -out cube --targets=*/amd64 .
 
       - name: Archive Output
         run: |
           mkdir -p artifacts
-          mv magicube* artifacts/
+          mv cube* artifacts/
           cp README.md artifacts/
           cp config.example.yaml artifacts/config.yaml
 

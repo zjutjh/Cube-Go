@@ -4,11 +4,11 @@ import (
 	"errors"
 	"net/http"
 
+	"cube-go/internal/apiException"
+	"cube-go/pkg/config"
+	"cube-go/pkg/response"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-	"jh-oss/internal/apiException"
-	"jh-oss/pkg/config"
-	"jh-oss/pkg/response"
 )
 
 // ErrHandler 中间件用于处理请求错误

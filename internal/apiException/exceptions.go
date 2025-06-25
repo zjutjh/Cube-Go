@@ -3,9 +3,9 @@ package apiException
 import (
 	"net/http"
 
+	"cube-go/pkg/log"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-	"jh-oss/pkg/log"
 )
 
 // Error 自定义错误类型

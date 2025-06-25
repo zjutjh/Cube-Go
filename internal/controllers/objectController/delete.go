@@ -3,12 +3,12 @@ package objectController
 import (
 	"errors"
 
+	"cube-go/internal/apiException"
+	"cube-go/internal/services/objectService"
+	"cube-go/pkg/oss"
+	"cube-go/pkg/response"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-	"jh-oss/internal/apiException"
-	"jh-oss/internal/services/objectService"
-	"jh-oss/pkg/oss"
-	"jh-oss/pkg/response"
 )
 
 type deleteFileData struct {

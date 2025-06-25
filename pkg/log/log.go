@@ -3,9 +3,9 @@ package log
 import (
 	"log"
 
+	"cube-go/pkg/config"
 	"github.com/zjutjh/WeJH-SDK/zapHelper"
 	"go.uber.org/zap"
-	"jh-oss/pkg/config"
 )
 
 // Init 初始化日志
