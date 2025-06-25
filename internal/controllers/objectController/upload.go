@@ -6,7 +6,6 @@ import (
 	"io"
 	"mime/multipart"
 	"path/filepath"
-	"sync"
 
 	"cube-go/internal/apiException"
 	"cube-go/internal/services/objectService"
@@ -17,23 +16,17 @@ import (
 	"go.uber.org/zap"
 )
 
-type batchUploadFileData struct {
-	Files       []*multipart.FileHeader `form:"files" binding:"required"`
-	Bucket      string                  `form:"bucket" binding:"required"`
-	Location    string                  `form:"location"`
-	ConvertWebP bool                    `form:"convert_webp"`
-	UseUUID     bool                    `form:"use_uuid"`
+type uploadFileData struct {
+	File        *multipart.FileHeader `form:"file" binding:"required"`
+	Bucket      string                `form:"bucket" binding:"required"`
+	Location    string                `form:"location"`
+	ConvertWebP bool                  `form:"convert_webp"`
+	UseUUID     bool                  `form:"use_uuid"`
 }
 
-type uploadFileRespElement struct {
-	Filename  string `json:"filename"`
-	ObjectKey string `json:"object_key,omitempty"`
-	Error     string `json:"error,omitempty"`
-}
-
-// BatchUploadFiles 批量上传文件
-func BatchUploadFiles(c *gin.Context) {
-	var data batchUploadFileData
+// UploadFile 上传文件
+func UploadFile(c *gin.Context) {
+	var data uploadFileData
 	if err := c.ShouldBind(&data); err != nil {
 		apiException.AbortWithException(c, apiException.ParamError, err)
 		return
@@ -45,40 +38,12 @@ func BatchUploadFiles(c *gin.Context) {
 		return
 	}
 
-	var mutex sync.Mutex
-	var wg sync.WaitGroup
-	results := make([]uploadFileRespElement, 0, len(data.Files))
-	for _, f := range data.Files {
-		wg.Add(1)
-		go func(fileHeader *multipart.FileHeader) {
-			defer wg.Done()
-
-			res := handleSingleUpload(fileHeader, &data, bucket, c.ClientIP())
-			mutex.Lock()
-			results = append(results, res)
-			mutex.Unlock()
-		}(f)
+	if data.File.Size > objectService.SizeLimit {
+		apiException.AbortWithException(c, apiException.FileSizeExceedError, nil)
+		return
 	}
 
-	wg.Wait()
-	response.JsonSuccessResp(c, gin.H{
-		"results": results,
-	})
-}
-
-func handleSingleUpload(
-	fileHeader *multipart.FileHeader, data *batchUploadFileData, bucket oss.StorageProvider, ip string,
-) uploadFileRespElement {
-	element := uploadFileRespElement{
-		Filename: fileHeader.Filename,
-	}
-
-	if fileHeader.Size > objectService.SizeLimit {
-		element.Error = apiException.FileSizeExceedError.Error()
-		return element
-	}
-
-	filename := fileHeader.Filename
+	filename := data.File.Filename
 	ext := filepath.Ext(filename)             // 获取文件扩展名
 	name := filename[:len(filename)-len(ext)] // 获取去掉扩展名的文件名
 
@@ -87,10 +52,10 @@ func handleSingleUpload(
 		name = uuid.NewV1().String()
 	}
 
-	file, err := fileHeader.Open()
+	file, err := data.File.Open()
 	if err != nil {
-		element.Error = apiException.UploadFileError.Error()
-		return element
+		apiException.AbortWithException(c, apiException.UploadFileError, err)
+		return
 	}
 	defer func() { _ = file.Close() }()
 
@@ -100,12 +65,12 @@ func handleSingleUpload(
 		reader, err = objectService.ConvertToWebP(file)
 		ext = ".webp"
 		if errors.Is(err, image.ErrFormat) {
-			element.Error = apiException.FileNotImageError.Error()
-			return element
+			apiException.AbortWithException(c, apiException.FileNotImageError, err)
+			return
 		}
 		if err != nil {
-			element.Error = apiException.ServerError.Error()
-			return element
+			apiException.AbortWithException(c, apiException.ServerError, err)
+			return
 		}
 	}
 
@@ -113,15 +78,16 @@ func handleSingleUpload(
 	objectKey := objectService.GenerateObjectKey(data.Location, name, ext)
 	err = bucket.SaveObject(reader, objectKey)
 	if errors.Is(err, oss.ErrFileAlreadyExists) {
-		element.Error = apiException.FileAlreadyExists.Error()
-		return element
+		apiException.AbortWithException(c, apiException.FileAlreadyExists, err)
+		return
 	}
 	if err != nil {
-		element.Error = apiException.ServerError.Error()
-		return element
+		apiException.AbortWithException(c, apiException.ServerError, err)
+		return
 	}
 
-	element.ObjectKey = objectKey
-	zap.L().Info("上传文件成功", zap.String("bucket", data.Bucket), zap.String("objectKey", objectKey), zap.String("ip", ip))
-	return element
+	zap.L().Info("上传文件成功", zap.String("bucket", data.Bucket), zap.String("objectKey", objectKey), zap.String("ip", c.ClientIP()))
+	response.JsonSuccessResp(c, gin.H{
+		"object_key": objectKey,
+	})
 }
