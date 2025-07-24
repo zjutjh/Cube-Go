@@ -28,7 +28,6 @@ s3: # 此处可挂载多个 S3 连接
     usePathStyle: true  # 参考服务商设置
 
 oss:
-  domain: "127.0.0.1:8080"  # OSS 访问地址（含端口）
   limit: 10  # 文件大小限制 单位: MB
   adminKey: ""  # 管理员密钥
 
