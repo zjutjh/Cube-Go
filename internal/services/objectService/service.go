@@ -58,7 +58,9 @@ func ConvertToWebP(reader io.Reader) (*bytes.Reader, error) {
 	buf.Reset()
 	defer bufferPool.Put(buf)
 
-	err = webp.Encode(buf, img, &webp.Options{Quality: 100})
+	err = webp.Encode(buf, img, &webp.Options{
+		Quality: float32(config.Config.GetInt("oss.quality")),
+	})
 	if err != nil {
 		return nil, err
 	}

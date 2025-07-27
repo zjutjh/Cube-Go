@@ -5,6 +5,7 @@ import (
 	"image"
 	"io"
 	"mime/multipart"
+	"net/http"
 	"path/filepath"
 
 	"cube-go/internal/apiException"
@@ -26,8 +27,15 @@ type uploadFileData struct {
 
 // UploadFile 上传文件
 func UploadFile(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, objectService.SizeLimit)
+
 	var data uploadFileData
 	if err := c.ShouldBind(&data); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			apiException.AbortWithException(c, apiException.FileSizeExceedError, err)
+			return
+		}
 		apiException.AbortWithException(c, apiException.ParamError, err)
 		return
 	}
@@ -35,11 +43,6 @@ func UploadFile(c *gin.Context) {
 	bucket, err := oss.Buckets.GetBucket(data.Bucket)
 	if err != nil {
 		apiException.AbortWithException(c, apiException.BucketNotFound, err)
-		return
-	}
-
-	if data.File.Size > objectService.SizeLimit {
-		apiException.AbortWithException(c, apiException.FileSizeExceedError, nil)
 		return
 	}
 

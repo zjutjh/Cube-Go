@@ -24,9 +24,10 @@ func ErrHandler() gin.HandlerFunc {
 			if err != nil {
 				var apiErr *apiException.Error
 
-				// 尝试将错误转换为 Exception
 				if errors.As(err, &apiErr) {
 					response.JsonErrorResp(c, apiErr.Code, apiErr.Msg)
+				} else {
+					zap.L().Error("Error occurred", zap.Error(err))
 				}
 				return
 			}

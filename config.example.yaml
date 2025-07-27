@@ -30,6 +30,7 @@ s3: # 此处可挂载多个 S3 连接
 oss:
   limit: 10  # 文件大小限制 单位: MB
   adminKey: ""  # 管理员密钥
+  quality: 75  # 图片质量（0-100）
 
 log:
   disableStacktrace: false # 是否禁用堆栈跟踪
