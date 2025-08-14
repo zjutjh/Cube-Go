@@ -2,6 +2,7 @@ package objectController
 
 import (
 	"errors"
+	"image"
 	"net/http"
 
 	"cube-go/internal/apiException"
@@ -19,6 +20,7 @@ type getFileListData struct {
 type getFileData struct {
 	Bucket    string `form:"bucket" binding:"required"`
 	ObjectKey string `form:"object_key" binding:"required"`
+	Thumbnail bool   `form:"thumbnail"`
 }
 
 // GetFileList 获取文件列表
@@ -58,27 +60,45 @@ func GetFile(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
+	objectKey := objectService.CleanLocation(data.ObjectKey)
 
-	bucket, err := oss.Buckets.GetBucket(data.Bucket)
-	if err != nil {
-		c.AbortWithStatus(http.StatusNotFound)
-		return
-	}
+	if data.Thumbnail {
+		thumbnail, size, err := objectService.GetThumbnail(data.Bucket, objectKey)
+		if errors.Is(err, oss.ErrResourceNotExists) || errors.Is(err, image.ErrFormat) {
+			c.AbortWithStatus(http.StatusNotFound)
+			return
+		}
+		if err != nil {
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		defer func() {
+			_ = thumbnail.Close()
+		}()
 
-	obj, content, err := bucket.GetObject(data.ObjectKey)
-	if errors.Is(err, oss.ErrResourceNotExists) {
-		c.AbortWithStatus(http.StatusNotFound)
-		return
-	}
-	if err != nil {
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return
-	}
-	defer func() {
-		_ = obj.Close()
-	}()
+		c.DataFromReader(http.StatusOK, size, "image/jpeg", thumbnail, nil)
+	} else {
+		bucket, err := oss.Buckets.GetBucket(data.Bucket)
+		if err != nil {
+			c.AbortWithStatus(http.StatusNotFound)
+			return
+		}
 
-	c.DataFromReader(http.StatusOK, content.ContentLength, content.ContentType, obj, nil)
+		obj, content, err := bucket.GetObject(objectKey)
+		if errors.Is(err, oss.ErrResourceNotExists) {
+			c.AbortWithStatus(http.StatusNotFound)
+			return
+		}
+		if err != nil {
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		defer func() {
+			_ = obj.Close()
+		}()
+
+		c.DataFromReader(http.StatusOK, content.ContentLength, content.ContentType, obj, nil)
+	}
 }
 
 // GetBucketList 获取存储桶列表

@@ -31,6 +31,9 @@ oss:
   limit: 10  # 文件大小限制 单位: MB
   adminKey: ""  # 管理员密钥
   quality: 75  # 图片质量（0-100）
+  thumbnailDir: "./thumbnail_cache"  # 缓存目录
+  thumbnailQuality: 85  # 缩略图质量（0-100）
+  thumbnailLongEdge: 640  # 缩略图长边像素
 
 log:
   disableStacktrace: false # 是否禁用堆栈跟踪

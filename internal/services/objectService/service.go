@@ -4,19 +4,23 @@ import (
 	"bytes"
 	"image"
 	_ "image/gif" // 注册解码器
-	_ "image/jpeg"
-	_ "image/png"
+	"image/jpeg"
+	_ "image/png" // 注册解码器
 	"io"
+	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
 
 	"cube-go/pkg/config"
+	"cube-go/pkg/oss"
 	"github.com/chai2010/webp"
 	"github.com/dustin/go-humanize"
 	_ "golang.org/x/image/bmp" // 注册解码器
-	_ "golang.org/x/image/tiff"
+	"golang.org/x/image/draw"
+	_ "golang.org/x/image/tiff" // 注册解码器
 	_ "golang.org/x/image/webp"
 )
 
@@ -65,4 +69,79 @@ func ConvertToWebP(reader io.Reader) (*bytes.Reader, error) {
 		return nil, err
 	}
 	return bytes.NewReader(buf.Bytes()), nil
+}
+
+// GetThumbnail 获取缩略图
+func GetThumbnail(bucket string, objectKey string) (io.ReadCloser, int64, error) {
+	filename := bucket + "-" + objectKey
+	cachePath := filepath.Join(config.Config.GetString("oss.thumbnailDir"), filename+".jpg")
+
+	// 尝试从缓存中读取
+	if stat, err := os.Stat(cachePath); err == nil {
+		file, err := os.Open(cachePath)
+		if err == nil {
+			return file, stat.Size(), nil
+		}
+	}
+
+	// 从 OSS 获取源文件
+	provider, err := oss.Buckets.GetBucket(bucket)
+	if err != nil {
+		return nil, 0, err
+	}
+	object, _, err := provider.GetObject(objectKey)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer func() {
+		_ = object.Close()
+	}()
+
+	// 解码图片
+	img, _, err := image.Decode(object)
+	if err != nil {
+		return nil, 0, err
+	}
+	finalImg := resizeIfNeeded(img, config.Config.GetInt("oss.thumbnailLongEdge"))
+
+	buf, _ := bufferPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer bufferPool.Put(buf)
+
+	err = jpeg.Encode(buf, finalImg, &jpeg.Options{
+		Quality: config.Config.GetInt("oss.thumbnailQuality"),
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// 写入缓存文件
+	if err := os.MkdirAll(filepath.Dir(cachePath), os.ModePerm); err == nil {
+		_ = os.WriteFile(cachePath, buf.Bytes(), 0644)
+	}
+
+	return io.NopCloser(bytes.NewReader(buf.Bytes())), int64(buf.Len()), nil
+}
+
+func resizeIfNeeded(img image.Image, targetLongSide int) image.Image {
+	b := img.Bounds()
+	w, h := b.Dx(), b.Dy()
+	longSide, shortSide := max(w, h), min(w, h)
+
+	if longSide <= targetLongSide {
+		return img
+	}
+	scale := float64(targetLongSide) / float64(longSide)
+	targetShort := int(float64(shortSide) * scale)
+
+	var tw, th int
+	if w > h {
+		tw, th = targetLongSide, targetShort
+	} else {
+		tw, th = targetShort, targetLongSide
+	}
+
+	dst := image.NewRGBA(image.Rect(0, 0, tw, th))
+	draw.BiLinear.Scale(dst, dst.Rect, img, b, draw.Over, nil)
+	return dst
 }

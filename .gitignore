@@ -27,3 +27,4 @@ go.work.sum
 /.idea
 /logs
 /static
+/thumbnail_cache
