@@ -29,6 +29,8 @@ var SizeLimit = humanize.MiByte * config.Config.GetInt64("oss.limit")
 
 var invalidCharRegex = regexp.MustCompile(`[:*?"<>|]`)
 
+var genLocks sync.Map
+
 var bufferPool = sync.Pool{
 	New: func() any {
 		return new(bytes.Buffer)
@@ -83,6 +85,20 @@ func GetThumbnail(bucket string, objectKey string) (io.ReadCloser, int64, error)
 			return file, stat.Size(), nil
 		}
 	}
+
+	// 并发生成锁
+	first, done := waitForPath(cachePath)
+	if !first {
+		// 别人已经在生成，直接等它生成完再读缓存
+		if stat, err := os.Stat(cachePath); err == nil {
+			file, err := os.Open(cachePath)
+			if err == nil {
+				return file, stat.Size(), nil
+			}
+		}
+		return nil, 0, oss.ErrResourceNotExists
+	}
+	defer done()
 
 	// 从 OSS 获取源文件
 	provider, err := oss.Buckets.GetBucket(bucket)
@@ -144,4 +160,21 @@ func resizeIfNeeded(img image.Image, targetLongSide int) image.Image {
 	dst := image.NewRGBA(image.Rect(0, 0, tw, th))
 	draw.BiLinear.Scale(dst, dst.Rect, img, b, draw.Over, nil)
 	return dst
+}
+
+func waitForPath(p string) (first bool, done func()) {
+	ch := make(chan struct{})
+	actual, loaded := genLocks.LoadOrStore(p, ch)
+	if !loaded {
+		// 第一个进来的
+		return true, func() {
+			close(ch)
+			genLocks.Delete(p)
+		}
+	}
+	// 不是第一个，就等待第一个完成
+	if newCh, ok := actual.(chan struct{}); ok {
+		<-newCh
+	}
+	return false, func() {}
 }
