@@ -118,6 +118,7 @@ func GetThumbnail(bucket string, objectKey string) (io.ReadCloser, int64, error)
 	if err != nil {
 		return nil, 0, err
 	}
+	img = removeAlpha(img)
 	finalImg := resizeIfNeeded(img, config.Config.GetInt("oss.thumbnailLongEdge"))
 
 	buf, _ := bufferPool.Get().(*bytes.Buffer)
@@ -177,4 +178,28 @@ func waitForPath(p string) (first bool, done func()) {
 		<-newCh
 	}
 	return false, func() {}
+}
+
+func removeAlpha(img image.Image) *image.RGBA {
+	b := img.Bounds()
+	out := image.NewRGBA(b)
+
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			r, g, b_, a := img.At(x, y).RGBA() // 返回 [0, 65535]
+
+			// 转成 [0,255]
+			r8 := uint8(r >> 8)
+			g8 := uint8(g >> 8)
+			b8 := uint8(b_ >> 8)
+			a8 := uint8(a >> 8)
+
+			// alpha 混合到白底
+			out.Pix[(y-b.Min.Y)*out.Stride+(x-b.Min.X)*4+0] = uint8((int(r8)*int(a8) + 255*(255-int(a8))) / 255)
+			out.Pix[(y-b.Min.Y)*out.Stride+(x-b.Min.X)*4+1] = uint8((int(g8)*int(a8) + 255*(255-int(a8))) / 255)
+			out.Pix[(y-b.Min.Y)*out.Stride+(x-b.Min.X)*4+2] = uint8((int(b8)*int(a8) + 255*(255-int(a8))) / 255)
+			out.Pix[(y-b.Min.Y)*out.Stride+(x-b.Min.X)*4+3] = 255
+		}
+	}
+	return out
 }
