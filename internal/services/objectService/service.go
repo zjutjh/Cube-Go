@@ -3,9 +3,8 @@ package objectService
 import (
 	"bytes"
 	"image"
-	_ "image/gif" // 注册解码器
+	"image/color"
 	"image/jpeg"
-	_ "image/png" // 注册解码器
 	"io"
 	"os"
 	"path"
@@ -18,10 +17,7 @@ import (
 	"cube-go/pkg/oss"
 	"github.com/chai2010/webp"
 	"github.com/dustin/go-humanize"
-	_ "golang.org/x/image/bmp" // 注册解码器
 	"golang.org/x/image/draw"
-	_ "golang.org/x/image/tiff" // 注册解码器
-	_ "golang.org/x/image/webp"
 )
 
 // SizeLimit 上传大小限制
@@ -55,7 +51,7 @@ func CleanLocation(location string) string {
 
 // ConvertToWebP 将图片转换为 WebP 格式
 func ConvertToWebP(reader io.Reader) (*bytes.Reader, error) {
-	img, _, err := image.Decode(reader)
+	img, err := DecodeImg(reader)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +110,7 @@ func GetThumbnail(bucket string, objectKey string) (io.ReadCloser, int64, error)
 	}()
 
 	// 解码图片
-	img, _, err := image.Decode(object)
+	img, err := DecodeImg(object)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -184,22 +180,7 @@ func removeAlpha(img image.Image) *image.RGBA {
 	b := img.Bounds()
 	out := image.NewRGBA(b)
 
-	for y := b.Min.Y; y < b.Max.Y; y++ {
-		for x := b.Min.X; x < b.Max.X; x++ {
-			r, g, b_, a := img.At(x, y).RGBA() // 返回 [0, 65535]
-
-			// 转成 [0,255]
-			r8 := uint8(r >> 8)
-			g8 := uint8(g >> 8)
-			b8 := uint8(b_ >> 8)
-			a8 := uint8(a >> 8)
-
-			// alpha 混合到白底
-			out.Pix[(y-b.Min.Y)*out.Stride+(x-b.Min.X)*4+0] = uint8((int(r8)*int(a8) + 255*(255-int(a8))) / 255)
-			out.Pix[(y-b.Min.Y)*out.Stride+(x-b.Min.X)*4+1] = uint8((int(g8)*int(a8) + 255*(255-int(a8))) / 255)
-			out.Pix[(y-b.Min.Y)*out.Stride+(x-b.Min.X)*4+2] = uint8((int(b8)*int(a8) + 255*(255-int(a8))) / 255)
-			out.Pix[(y-b.Min.Y)*out.Stride+(x-b.Min.X)*4+3] = 255
-		}
-	}
+	draw.Draw(out, b, &image.Uniform{C: color.White}, image.Point{}, draw.Src)
+	draw.Draw(out, b, img, b.Min, draw.Over)
 	return out
 }
