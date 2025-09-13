@@ -12,8 +12,8 @@ import (
 	_ "golang.org/x/image/webp"
 )
 
-// DecodeImg 解码图像
-func DecodeImg(reader io.Reader) (image.Image, error) {
+// decodeImg 解码图像
+func decodeImg(reader io.Reader) (image.Image, error) {
 	img, _, err := image.Decode(reader)
 	if err != nil {
 		return nil, err

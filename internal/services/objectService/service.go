@@ -16,7 +16,9 @@ import (
 	"cube-go/pkg/config"
 	"cube-go/pkg/oss"
 	"github.com/chai2010/webp"
+	"github.com/disintegration/imaging"
 	"github.com/dustin/go-humanize"
+	"github.com/rwcarlsen/goexif/exif"
 	"golang.org/x/image/draw"
 )
 
@@ -51,15 +53,22 @@ func CleanLocation(location string) string {
 
 // ConvertToWebP 将图片转换为 WebP 格式
 func ConvertToWebP(reader io.Reader) (*bytes.Reader, error) {
-	img, err := DecodeImg(reader)
+	data, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, err
 	}
+
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	img, _ = fixOrientation(img, bytes.NewReader(data))
 
 	buf, _ := bufferPool.Get().(*bytes.Buffer)
 	buf.Reset()
 	defer bufferPool.Put(buf)
 
+	// 编码为 WebP
 	err = webp.Encode(buf, img, &webp.Options{
 		Quality: float32(config.Config.GetInt("oss.quality")),
 	})
@@ -67,6 +76,50 @@ func ConvertToWebP(reader io.Reader) (*bytes.Reader, error) {
 		return nil, err
 	}
 	return bytes.NewReader(buf.Bytes()), nil
+}
+
+// fixOrientation 修复图片的旋转
+func fixOrientation(img image.Image, exifData io.Reader) (image.Image, error) {
+	x, err := exif.Decode(exifData)
+	if err != nil {
+		return nil, err
+	}
+
+	tag, err := x.Get(exif.Orientation)
+	if err != nil {
+		return nil, err
+	}
+
+	orientation, err := tag.Int(0)
+	if err != nil {
+		return nil, err
+	}
+
+	return applyOrientation(img, orientation), nil
+}
+
+// applyOrientation 根据 EXIF Orientation 调整图像方向
+func applyOrientation(img image.Image, orientation int) image.Image {
+	switch orientation {
+	case 1: // 正常
+		return img
+	case 2: // 水平翻转
+		return imaging.FlipH(img)
+	case 3: // 旋转 180°
+		return imaging.Rotate180(img)
+	case 4: // 垂直翻转
+		return imaging.FlipV(img)
+	case 5: // 顺时针 90° + 水平翻转
+		return imaging.FlipH(imaging.Rotate270(img))
+	case 6: // 顺时针 90°
+		return imaging.Rotate270(img)
+	case 7: // 顺时针 90° + 垂直翻转
+		return imaging.FlipV(imaging.Rotate270(img))
+	case 8: // 逆时针 90°
+		return imaging.Rotate90(img)
+	default:
+		return img
+	}
 }
 
 // GetThumbnail 获取缩略图
@@ -110,7 +163,7 @@ func GetThumbnail(bucket string, objectKey string) (io.ReadCloser, int64, error)
 	}()
 
 	// 解码图片
-	img, err := DecodeImg(object)
+	img, err := decodeImg(object)
 	if err != nil {
 		return nil, 0, err
 	}
