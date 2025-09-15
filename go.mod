@@ -17,7 +17,6 @@ require (
 	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-gonic/gin v1.10.1
 	github.com/pkg/xattr v0.4.12
-	github.com/rwcarlsen/goexif v0.0.0-20190401172101-9e8deecbddbd
 	github.com/satori/go.uuid v1.2.0
 	github.com/spf13/viper v1.21.0
 	github.com/zjutjh/WeJH-SDK v0.2.4

@@ -18,12 +18,13 @@ import (
 	"github.com/chai2010/webp"
 	"github.com/disintegration/imaging"
 	"github.com/dustin/go-humanize"
-	"github.com/rwcarlsen/goexif/exif"
-	"golang.org/x/image/draw"
+	_ "golang.org/x/image/webp" // 注册解码器
 )
 
 // SizeLimit 上传大小限制
 var SizeLimit = humanize.MiByte * config.Config.GetInt64("oss.limit")
+
+var maxLongEdge = config.Config.GetInt("oss.thumbnailLongEdge")
 
 var invalidCharRegex = regexp.MustCompile(`[:*?"<>|]`)
 
@@ -53,16 +54,10 @@ func CleanLocation(location string) string {
 
 // ConvertToWebP 将图片转换为 WebP 格式
 func ConvertToWebP(reader io.Reader) (*bytes.Reader, error) {
-	data, err := io.ReadAll(reader)
+	img, err := imaging.Decode(reader, imaging.AutoOrientation(true))
 	if err != nil {
 		return nil, err
 	}
-
-	img, _, err := image.Decode(bytes.NewReader(data))
-	if err != nil {
-		return nil, err
-	}
-	img, _ = fixOrientation(img, bytes.NewReader(data))
 
 	buf, _ := bufferPool.Get().(*bytes.Buffer)
 	buf.Reset()
@@ -76,50 +71,6 @@ func ConvertToWebP(reader io.Reader) (*bytes.Reader, error) {
 		return nil, err
 	}
 	return bytes.NewReader(buf.Bytes()), nil
-}
-
-// fixOrientation 修复图片的旋转
-func fixOrientation(img image.Image, exifData io.Reader) (image.Image, error) {
-	x, err := exif.Decode(exifData)
-	if err != nil {
-		return nil, err
-	}
-
-	tag, err := x.Get(exif.Orientation)
-	if err != nil {
-		return nil, err
-	}
-
-	orientation, err := tag.Int(0)
-	if err != nil {
-		return nil, err
-	}
-
-	return applyOrientation(img, orientation), nil
-}
-
-// applyOrientation 根据 EXIF Orientation 调整图像方向
-func applyOrientation(img image.Image, orientation int) image.Image {
-	switch orientation {
-	case 1: // 正常
-		return img
-	case 2: // 水平翻转
-		return imaging.FlipH(img)
-	case 3: // 旋转 180°
-		return imaging.Rotate180(img)
-	case 4: // 垂直翻转
-		return imaging.FlipV(img)
-	case 5: // 顺时针 90° + 水平翻转
-		return imaging.FlipH(imaging.Rotate270(img))
-	case 6: // 顺时针 90°
-		return imaging.Rotate270(img)
-	case 7: // 顺时针 90° + 垂直翻转
-		return imaging.FlipV(imaging.Rotate270(img))
-	case 8: // 逆时针 90°
-		return imaging.Rotate90(img)
-	default:
-		return img
-	}
 }
 
 // GetThumbnail 获取缩略图
@@ -163,12 +114,12 @@ func GetThumbnail(bucket string, objectKey string) (io.ReadCloser, int64, error)
 	}()
 
 	// 解码图片
-	img, err := decodeImg(object)
+	img, err := imaging.Decode(object, imaging.AutoOrientation(true))
 	if err != nil {
 		return nil, 0, err
 	}
 	img = removeAlpha(img)
-	finalImg := resizeIfNeeded(img, config.Config.GetInt("oss.thumbnailLongEdge"))
+	finalImg := imaging.Fit(img, maxLongEdge, maxLongEdge, imaging.CatmullRom)
 
 	buf, _ := bufferPool.Get().(*bytes.Buffer)
 	buf.Reset()
@@ -189,29 +140,6 @@ func GetThumbnail(bucket string, objectKey string) (io.ReadCloser, int64, error)
 	return io.NopCloser(bytes.NewReader(buf.Bytes())), int64(buf.Len()), nil
 }
 
-func resizeIfNeeded(img image.Image, targetLongSide int) image.Image {
-	b := img.Bounds()
-	w, h := b.Dx(), b.Dy()
-	longSide, shortSide := max(w, h), min(w, h)
-
-	if longSide <= targetLongSide {
-		return img
-	}
-	scale := float64(targetLongSide) / float64(longSide)
-	targetShort := int(float64(shortSide) * scale)
-
-	var tw, th int
-	if w > h {
-		tw, th = targetLongSide, targetShort
-	} else {
-		tw, th = targetShort, targetLongSide
-	}
-
-	dst := image.NewRGBA(image.Rect(0, 0, tw, th))
-	draw.BiLinear.Scale(dst, dst.Rect, img, b, draw.Over, nil)
-	return dst
-}
-
 func waitForPath(p string) (first bool, done func()) {
 	ch := make(chan struct{})
 	actual, loaded := genLocks.LoadOrStore(p, ch)
@@ -229,11 +157,8 @@ func waitForPath(p string) (first bool, done func()) {
 	return false, func() {}
 }
 
-func removeAlpha(img image.Image) *image.RGBA {
+func removeAlpha(img image.Image) image.Image {
 	b := img.Bounds()
-	out := image.NewRGBA(b)
-
-	draw.Draw(out, b, &image.Uniform{C: color.White}, image.Point{}, draw.Src)
-	draw.Draw(out, b, img, b.Min, draw.Over)
-	return out
+	bg := imaging.New(b.Dx(), b.Dy(), color.White)
+	return imaging.Overlay(bg, img, image.Pt(0, 0), 1.0)
 }
