@@ -63,7 +63,7 @@ func GetFile(c *gin.Context) {
 	objectKey := objectService.CleanLocation(data.ObjectKey)
 
 	if data.Thumbnail {
-		thumbnail, size, err := objectService.GetThumbnail(data.Bucket, objectKey)
+		thumbnail, info, err := objectService.GetThumbnail(data.Bucket, objectKey)
 		if errors.Is(err, oss.ErrResourceNotExists) || errors.Is(err, image.ErrFormat) {
 			c.AbortWithStatus(http.StatusNotFound)
 			return
@@ -76,7 +76,10 @@ func GetFile(c *gin.Context) {
 			_ = thumbnail.Close()
 		}()
 
-		c.DataFromReader(http.StatusOK, size, "image/jpeg", thumbnail, nil)
+		headers := map[string]string{
+			"Last-Modified": info.LastModified.Format(http.TimeFormat),
+		}
+		c.DataFromReader(http.StatusOK, info.ContentLength, info.ContentType, thumbnail, headers)
 	} else {
 		bucket, err := oss.Buckets.GetBucket(data.Bucket)
 		if err != nil {
@@ -97,7 +100,10 @@ func GetFile(c *gin.Context) {
 			_ = obj.Close()
 		}()
 
-		c.DataFromReader(http.StatusOK, content.ContentLength, content.ContentType, obj, nil)
+		headers := map[string]string{
+			"Last-Modified": content.LastModified.Format(http.TimeFormat),
+		}
+		c.DataFromReader(http.StatusOK, content.ContentLength, content.ContentType, obj, headers)
 	}
 }
 

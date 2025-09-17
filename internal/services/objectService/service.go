@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"cube-go/pkg/config"
 	"cube-go/pkg/oss"
@@ -74,7 +75,7 @@ func ConvertToWebP(reader io.Reader) (*bytes.Reader, error) {
 }
 
 // GetThumbnail 获取缩略图
-func GetThumbnail(bucket string, objectKey string) (io.ReadCloser, int64, error) {
+func GetThumbnail(bucket string, objectKey string) (io.ReadCloser, *oss.GetObjectInfo, error) {
 	filename := bucket + "-" + objectKey
 	cachePath := filepath.Join(config.Config.GetString("oss.thumbnailDir"), filename+".jpg")
 
@@ -82,7 +83,12 @@ func GetThumbnail(bucket string, objectKey string) (io.ReadCloser, int64, error)
 	if stat, err := os.Stat(cachePath); err == nil {
 		file, err := os.Open(cachePath)
 		if err == nil {
-			return file, stat.Size(), nil
+			info := oss.GetObjectInfo{
+				ContentType:   "image/jpeg",
+				ContentLength: stat.Size(),
+				LastModified:  stat.ModTime(),
+			}
+			return file, &info, nil
 		}
 	}
 
@@ -93,21 +99,26 @@ func GetThumbnail(bucket string, objectKey string) (io.ReadCloser, int64, error)
 		if stat, err := os.Stat(cachePath); err == nil {
 			file, err := os.Open(cachePath)
 			if err == nil {
-				return file, stat.Size(), nil
+				info := oss.GetObjectInfo{
+					ContentType:   "image/jpeg",
+					ContentLength: stat.Size(),
+					LastModified:  stat.ModTime(),
+				}
+				return file, &info, nil
 			}
 		}
-		return nil, 0, oss.ErrResourceNotExists
+		return nil, nil, oss.ErrResourceNotExists
 	}
 	defer done()
 
 	// 从 OSS 获取源文件
 	provider, err := oss.Buckets.GetBucket(bucket)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 	object, _, err := provider.GetObject(objectKey)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 	defer func() {
 		_ = object.Close()
@@ -116,7 +127,7 @@ func GetThumbnail(bucket string, objectKey string) (io.ReadCloser, int64, error)
 	// 解码图片
 	img, err := imaging.Decode(object, imaging.AutoOrientation(true))
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 	img = removeAlpha(img)
 	finalImg := imaging.Fit(img, maxLongEdge, maxLongEdge, imaging.CatmullRom)
@@ -129,7 +140,7 @@ func GetThumbnail(bucket string, objectKey string) (io.ReadCloser, int64, error)
 		Quality: config.Config.GetInt("oss.thumbnailQuality"),
 	})
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 
 	// 写入缓存文件
@@ -137,7 +148,12 @@ func GetThumbnail(bucket string, objectKey string) (io.ReadCloser, int64, error)
 		_ = os.WriteFile(cachePath, buf.Bytes(), 0644)
 	}
 
-	return io.NopCloser(bytes.NewReader(buf.Bytes())), int64(buf.Len()), nil
+	info := oss.GetObjectInfo{
+		ContentType:   "image/jpeg",
+		ContentLength: int64(buf.Len()),
+		LastModified:  time.Now(),
+	}
+	return io.NopCloser(bytes.NewReader(buf.Bytes())), &info, nil
 }
 
 func waitForPath(p string) (first bool, done func()) {

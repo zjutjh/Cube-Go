@@ -3,6 +3,7 @@ package oss
 import (
 	"errors"
 	"io"
+	"time"
 )
 
 // StorageProvider 定义存储服务接口
@@ -26,6 +27,7 @@ type FileListElement struct {
 type GetObjectInfo struct {
 	ContentType   string
 	ContentLength int64
+	LastModified  time.Time
 }
 
 var (

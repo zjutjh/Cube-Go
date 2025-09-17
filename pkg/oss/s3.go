@@ -98,6 +98,7 @@ func (p *S3StorageProvider) GetObject(objectKey string) (io.ReadCloser, *GetObje
 	info := &GetObjectInfo{
 		ContentLength: aws.ToInt64(result.ContentLength),
 		ContentType:   aws.ToString(result.ContentType),
+		LastModified:  aws.ToTime(result.LastModified),
 	}
 	return result.Body, info, nil
 }

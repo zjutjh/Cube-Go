@@ -111,6 +111,7 @@ func (p *LocalStorageProvider) GetObject(objectKey string) (io.ReadCloser, *GetO
 	info := &GetObjectInfo{
 		ContentLength: stat.Size(),
 		ContentType:   getMimeType(relativePath),
+		LastModified:  stat.ModTime(),
 	}
 
 	// 读取文件
