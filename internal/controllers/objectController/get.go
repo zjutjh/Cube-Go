@@ -4,6 +4,7 @@ import (
 	"errors"
 	"image"
 	"net/http"
+	"time"
 
 	"cube-go/internal/apiException"
 	"cube-go/internal/services/objectService"
@@ -76,10 +77,11 @@ func GetFile(c *gin.Context) {
 			_ = thumbnail.Close()
 		}()
 
-		headers := map[string]string{
-			"Last-Modified": info.LastModified.Format(http.TimeFormat),
+		if checkCacheHeaders(c, info.LastModified) {
+			return
 		}
-		c.DataFromReader(http.StatusOK, info.ContentLength, info.ContentType, thumbnail, headers)
+
+		c.DataFromReader(http.StatusOK, info.ContentLength, info.ContentType, thumbnail, nil)
 	} else {
 		bucket, err := oss.Buckets.GetBucket(data.Bucket)
 		if err != nil {
@@ -100,11 +102,30 @@ func GetFile(c *gin.Context) {
 			_ = obj.Close()
 		}()
 
-		headers := map[string]string{
-			"Last-Modified": content.LastModified.Format(http.TimeFormat),
+		if checkCacheHeaders(c, content.LastModified) {
+			return
 		}
-		c.DataFromReader(http.StatusOK, content.ContentLength, content.ContentType, obj, headers)
+
+		c.DataFromReader(http.StatusOK, content.ContentLength, content.ContentType, obj, nil)
 	}
+}
+
+// checkCacheHeaders 检查 If-Modified-Since 并设置缓存头部
+func checkCacheHeaders(c *gin.Context, lastModified time.Time) bool {
+	c.Header("Cache-Control", "public, max-age=31536000")
+	c.Header("Last-Modified", lastModified.Format(http.TimeFormat))
+
+	ifModifiedSince := c.GetHeader("If-Modified-Since")
+	if ifModifiedSince != "" {
+		if t, err := time.Parse(http.TimeFormat, ifModifiedSince); err == nil {
+			// 忽略毫秒，只精确到秒进行比较
+			if !lastModified.Truncate(time.Second).After(t) {
+				c.Status(http.StatusNotModified)
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // GetBucketList 获取存储桶列表
