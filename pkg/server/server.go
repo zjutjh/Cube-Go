@@ -18,7 +18,6 @@ import (
 func InitCORS() gin.HandlerFunc {
 	config := cors.DefaultConfig()
 	config.AllowAllOrigins = true
-	config.AllowCredentials = true
 	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Key"}
 	return cors.New(config)
 }
