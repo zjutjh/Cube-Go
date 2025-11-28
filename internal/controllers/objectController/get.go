@@ -1,6 +1,8 @@
 package objectController
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"errors"
 	"image"
 	"net/http"
@@ -77,7 +79,7 @@ func GetFile(c *gin.Context) {
 			_ = thumbnail.Close()
 		}()
 
-		if checkCacheHeaders(c, info.LastModified) {
+		if checkCacheHeaders(c, objectKey, info.LastModified) {
 			return
 		}
 
@@ -102,7 +104,7 @@ func GetFile(c *gin.Context) {
 			_ = obj.Close()
 		}()
 
-		if checkCacheHeaders(c, content.LastModified) {
+		if checkCacheHeaders(c, objectKey, content.LastModified) {
 			return
 		}
 
@@ -110,11 +112,28 @@ func GetFile(c *gin.Context) {
 	}
 }
 
-// checkCacheHeaders 检查 If-Modified-Since 并设置缓存头部
-func checkCacheHeaders(c *gin.Context, lastModified time.Time) bool {
-	c.Header("Cache-Control", "public, max-age=31536000")
-	c.Header("Last-Modified", lastModified.Format(http.TimeFormat))
+// checkCacheHeaders 检查缓存头并设置响应头
+// 同时支持 ETag (If-None-Match) 和 Last-Modified (If-Modified-Since) 验证
+// 返回 true 表示命中缓存，应返回 304
+func checkCacheHeaders(c *gin.Context, objectKey string, lastModified time.Time) bool {
+	// 生成 ETag：基于 objectKey 和 lastModified
+	hash := md5.Sum([]byte(objectKey + lastModified.String()))
+	etag := `"` + hex.EncodeToString(hash[:]) + `"`
 
+	// 设置响应头
+	c.Header("ETag", etag)
+	c.Header("Last-Modified", lastModified.Format(http.TimeFormat))
+	c.Header("Cache-Control", "public, max-age=31536000, immutable")
+
+	// 优先检查 ETag
+	if ifNoneMatch := c.GetHeader("If-None-Match"); ifNoneMatch != "" {
+		if ifNoneMatch == etag || ifNoneMatch == "*" {
+			c.Status(http.StatusNotModified)
+			return true
+		}
+	}
+
+	// 回退到 Last-Modified 检查
 	ifModifiedSince := c.GetHeader("If-Modified-Since")
 	if ifModifiedSince != "" {
 		if t, err := time.Parse(http.TimeFormat, ifModifiedSince); err == nil {
