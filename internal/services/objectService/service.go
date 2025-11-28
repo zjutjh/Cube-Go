@@ -12,7 +12,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
 	"cube-go/pkg/config"
 	"cube-go/pkg/oss"
@@ -80,45 +79,33 @@ func GetThumbnail(bucket string, objectKey string) (io.ReadCloser, *oss.GetObjec
 	cachePath := filepath.Join(config.Config.GetString("oss.thumbnailDir"), filename+".jpg")
 
 	// 尝试从缓存中读取
-	if stat, err := os.Stat(cachePath); err == nil {
-		file, err := os.Open(cachePath)
-		if err == nil {
-			info := oss.GetObjectInfo{
-				ContentType:   "image/jpeg",
-				ContentLength: stat.Size(),
-				LastModified:  stat.ModTime(),
-			}
-			return file, &info, nil
-		}
+	if reader, info, err := readFromCache(cachePath); err == nil {
+		return reader, info, nil
 	}
 
 	// 并发生成锁
 	first, done := waitForPath(cachePath)
-	if !first {
-		// 别人已经在生成，直接等它生成完再读缓存
-		if stat, err := os.Stat(cachePath); err == nil {
-			file, err := os.Open(cachePath)
-			if err == nil {
-				info := oss.GetObjectInfo{
-					ContentType:   "image/jpeg",
-					ContentLength: stat.Size(),
-					LastModified:  stat.ModTime(),
-				}
-				return file, &info, nil
-			}
+	if first {
+		// 第一个进来的负责生成缩略图
+		if err := generateThumbnail(bucket, objectKey, cachePath); err != nil {
+			return nil, nil, err
 		}
-		return nil, nil, oss.ErrResourceNotExists
 	}
 	defer done()
 
+	return readFromCache(cachePath)
+}
+
+// generateThumbnail 生成缩略图并写入缓存
+func generateThumbnail(bucket, objectKey, cachePath string) error {
 	// 从 OSS 获取源文件
 	provider, err := oss.Buckets.GetBucket(bucket)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 	object, _, err := provider.GetObject(objectKey)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 	defer func() {
 		_ = object.Close()
@@ -127,7 +114,7 @@ func GetThumbnail(bucket string, objectKey string) (io.ReadCloser, *oss.GetObjec
 	// 解码图片
 	img, err := imaging.Decode(object, imaging.AutoOrientation(true))
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 	img = removeAlpha(img)
 	finalImg := imaging.Fit(img, maxLongEdge, maxLongEdge, imaging.CatmullRom)
@@ -140,22 +127,36 @@ func GetThumbnail(bucket string, objectKey string) (io.ReadCloser, *oss.GetObjec
 		Quality: config.Config.GetInt("oss.thumbnailQuality"),
 	})
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 
 	// 写入缓存文件
-	if err := os.MkdirAll(filepath.Dir(cachePath), os.ModePerm); err == nil {
-		_ = os.WriteFile(cachePath, buf.Bytes(), 0644)
+	err = os.MkdirAll(filepath.Dir(cachePath), os.ModePerm)
+	if err != nil {
+		return err
 	}
-
-	info := oss.GetObjectInfo{
-		ContentType:   "image/jpeg",
-		ContentLength: int64(buf.Len()),
-		LastModified:  time.Now(),
-	}
-	return io.NopCloser(bytes.NewReader(buf.Bytes())), &info, nil
+	return os.WriteFile(cachePath, buf.Bytes(), 0644)
 }
 
+// readFromCache 从缓存文件读取
+func readFromCache(cachePath string) (io.ReadCloser, *oss.GetObjectInfo, error) {
+	stat, err := os.Stat(cachePath)
+	if err != nil {
+		return nil, nil, err
+	}
+	file, err := os.Open(cachePath)
+	if err != nil {
+		return nil, nil, err
+	}
+	info := &oss.GetObjectInfo{
+		ContentType:   "image/jpeg",
+		ContentLength: stat.Size(),
+		LastModified:  stat.ModTime(),
+	}
+	return file, info, nil
+}
+
+// waitForPath 路径并发锁
 func waitForPath(p string) (first bool, done func()) {
 	ch := make(chan struct{})
 	actual, loaded := genLocks.LoadOrStore(p, ch)
@@ -173,6 +174,7 @@ func waitForPath(p string) (first bool, done func()) {
 	return false, func() {}
 }
 
+// removeAlpha 去除 Alpha 通道，使用白底填充
 func removeAlpha(img image.Image) image.Image {
 	b := img.Bounds()
 	bg := imaging.New(b.Dx(), b.Dy(), color.White)
