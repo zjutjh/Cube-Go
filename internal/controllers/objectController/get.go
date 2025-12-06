@@ -26,6 +26,8 @@ type getFileData struct {
 
 // GetFileList 获取文件列表
 func GetFileList(c *gin.Context) {
+	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+
 	var data getFileListData
 	if err := c.ShouldBindQuery(&data); err != nil {
 		apiException.AbortWithException(c, apiException.ParamError, err)
@@ -130,6 +132,7 @@ func checkCacheHeaders(c *gin.Context, lastModified time.Time) bool {
 
 // GetBucketList 获取存储桶列表
 func GetBucketList(c *gin.Context) {
+	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 	response.JsonSuccessResp(c, gin.H{
 		"bucket_list": oss.Buckets.GetBucketList(),
 	})
