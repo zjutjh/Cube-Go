@@ -12,6 +12,7 @@ import (
 	"cube-go/internal/services/objectService"
 	"cube-go/pkg/oss"
 	"cube-go/pkg/response"
+
 	"github.com/gin-gonic/gin"
 	uuid "github.com/satori/go.uuid"
 	"go.uber.org/zap"

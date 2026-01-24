@@ -15,10 +15,11 @@ import (
 
 	"cube-go/pkg/config"
 	"cube-go/pkg/oss"
-	"github.com/chai2010/webp"
+
 	"github.com/disintegration/imaging"
 	"github.com/dustin/go-humanize"
-	_ "golang.org/x/image/webp" // 注册解码器
+	"github.com/kolesa-team/go-webp/encoder"
+	"github.com/kolesa-team/go-webp/webp"
 )
 
 // SizeLimit 上传大小限制
@@ -64,9 +65,11 @@ func ConvertToWebP(reader io.Reader) (*bytes.Reader, error) {
 	defer bufferPool.Put(buf)
 
 	// 编码为 WebP
-	err = webp.Encode(buf, img, &webp.Options{
-		Quality: float32(config.Config.GetInt("oss.quality")),
-	})
+	options, err := encoder.NewLossyEncoderOptions(encoder.PresetDefault, float32(config.Config.GetInt("oss.quality")))
+	if err != nil {
+		return nil, err
+	}
+	err = webp.Encode(buf, img, options)
 	if err != nil {
 		return nil, err
 	}

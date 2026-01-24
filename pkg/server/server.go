@@ -16,10 +16,13 @@ import (
 
 // InitCORS 初始化 CORS 中间件
 func InitCORS() gin.HandlerFunc {
-	config := cors.DefaultConfig()
-	config.AllowAllOrigins = true
-	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Key"}
-	return cors.New(config)
+	return cors.New(cors.Config{
+		AllowOrigins:     []string{"*"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Key"},
+		AllowCredentials: false,
+		MaxAge:           12 * time.Hour,
+	})
 }
 
 // Run 运行 Http 服务器

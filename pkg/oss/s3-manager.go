@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"cube-go/pkg/config"
+
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 

@@ -5,7 +5,24 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            artifact_name: cube-linux-amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+            artifact_name: cube-darwin-amd64
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            artifact_name: cube-windows-amd64.exe
+
+    runs-on: ${{ matrix.os }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -13,20 +30,54 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
 
-      - name: Build
+      - name: Install libwebp (Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: |
-          go install src.techknowlogick.com/xgo@latest
-          xgo -out cube --targets=*/amd64 .
+          sudo apt-get update
+          sudo apt-get install -y libwebp-dev
+
+      - name: Install libwebp (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install webp
+
+      - name: Install MSYS2 and libwebp (Windows)
+        if: matrix.os == 'windows-latest'
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: mingw-w64-x86_64-gcc mingw-w64-x86_64-libwebp
+
+      - name: Set Windows build environment
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        env:
+          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
+        run: |
+          echo "CGO_ENABLED=1" >> $env:GITHUB_ENV
+          echo "CC=$env:MSYS2_LOCATION\mingw64\bin\gcc.exe" >> $env:GITHUB_ENV
+          echo "PKG_CONFIG_PATH=$env:MSYS2_LOCATION\mingw64\lib\pkgconfig" >> $env:GITHUB_ENV
+          echo "$env:MSYS2_LOCATION\mingw64\bin" >> $env:GITHUB_PATH
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 1
+        run: go build -o ${{ matrix.artifact_name }} .
 
       - name: Archive Output
+        shell: bash
         run: |
           mkdir -p artifacts
-          mv cube* artifacts/
+          mv ${{ matrix.artifact_name }} artifacts/
           cp README.md artifacts/
           cp config.example.yaml artifacts/config.yaml
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: build-output
+          name: ${{ matrix.artifact_name }}
           path: artifacts/

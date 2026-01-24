@@ -3,6 +3,7 @@ package routes
 import (
 	"cube-go/internal/controllers/objectController"
 	"cube-go/internal/midwares"
+
 	"github.com/gin-gonic/gin"
 )
 

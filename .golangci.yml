@@ -92,7 +92,7 @@ linters:
     - unused # 检查未使用的代码
     - unparam # 检查未使用的函数参数
     - prealloc # 检查预分配建议
-    - gci # 检查并排序导入语句
+    - goimports # 检查并排序导入语句
 
 issues:
   exclude-use-default: false  # 禁用默认排除模式
