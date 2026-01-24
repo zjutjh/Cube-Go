@@ -14,8 +14,8 @@ jobs:
             artifact_name: cube-linux-amd64
           - os: macos-latest
             goos: darwin
-            goarch: amd64
-            artifact_name: cube-darwin-amd64
+            goarch: arm64
+            artifact_name: cube-darwin-arm64
           - os: windows-latest
             goos: windows
             goarch: amd64
