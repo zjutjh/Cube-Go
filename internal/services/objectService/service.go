@@ -31,12 +31,6 @@ var invalidCharRegex = regexp.MustCompile(`[:*?"<>|]`)
 
 var genLocks sync.Map
 
-var bufferPool = sync.Pool{
-	New: func() any {
-		return new(bytes.Buffer)
-	},
-}
-
 // GenerateObjectKey 通过路径和文件名生成 ObjectKey
 func GenerateObjectKey(location string, filename string, fileExt string) string {
 	return path.Join(CleanLocation(location), filename+fileExt)
@@ -60,16 +54,14 @@ func ConvertToWebP(reader io.Reader) (*bytes.Reader, error) {
 		return nil, err
 	}
 
-	buf, _ := bufferPool.Get().(*bytes.Buffer)
-	buf.Reset()
-	defer bufferPool.Put(buf)
+	var buf bytes.Buffer
 
 	// 编码为 WebP
 	options, err := encoder.NewLossyEncoderOptions(encoder.PresetDefault, float32(config.Config.GetInt("oss.quality")))
 	if err != nil {
 		return nil, err
 	}
-	err = webp.Encode(buf, img, options)
+	err = webp.Encode(&buf, img, options)
 	if err != nil {
 		return nil, err
 	}
@@ -122,11 +114,9 @@ func generateThumbnail(bucket, objectKey, cachePath string) error {
 	img = removeAlpha(img)
 	finalImg := imaging.Fit(img, maxLongEdge, maxLongEdge, imaging.CatmullRom)
 
-	buf, _ := bufferPool.Get().(*bytes.Buffer)
-	buf.Reset()
-	defer bufferPool.Put(buf)
+	var buf bytes.Buffer
 
-	err = jpeg.Encode(buf, finalImg, &jpeg.Options{
+	err = jpeg.Encode(&buf, finalImg, &jpeg.Options{
 		Quality: config.Config.GetInt("oss.thumbnailQuality"),
 	})
 	if err != nil {
