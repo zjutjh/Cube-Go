@@ -30,6 +30,22 @@ type getFileData struct {
 	Thumbnail bool   `form:"thumbnail"`
 }
 
+const (
+	objectCacheControl  = "public, max-age=0, s-maxage=300, stale-while-revalidate=30"
+	noStoreCacheControl = "no-store"
+)
+
+type cacheResponseWriter struct {
+	gin.ResponseWriter
+}
+
+func (w *cacheResponseWriter) WriteHeader(status int) {
+	if status == http.StatusOK || status == http.StatusPartialContent || status == http.StatusNotModified {
+		w.Header().Set("Cache-Control", objectCacheControl)
+	}
+	w.ResponseWriter.WriteHeader(status)
+}
+
 // GetFileList 获取文件列表
 func GetFileList(c *gin.Context) {
 	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
@@ -89,6 +105,7 @@ func ServeThumbnail(c *gin.Context) {
 }
 
 func serveObject(c *gin.Context, thumbnail bool) {
+	c.Header("Cache-Control", noStoreCacheControl)
 	bucketName := c.Param("bucket")
 	objectKey, isDir, err := oss.NormalizeObjectKey(strings.TrimPrefix(c.Param("object_key"), "/"), false)
 	if err != nil || isDir {
@@ -100,8 +117,6 @@ func serveObject(c *gin.Context, thumbnail bool) {
 		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}
-	c.Header("Cache-Control", "public, no-cache")
-
 	if thumbnail {
 		reader, info, err := objectService.GetThumbnail(c.Request.Context(), bucketName, objectKey)
 		if err != nil {
@@ -131,7 +146,7 @@ func serveSeekable(c *gin.Context, name string, reader io.ReadCloser, info *oss.
 		return
 	}
 	setObjectHeaders(c, info, false)
-	http.ServeContent(c.Writer, c.Request, path.Base(name), info.LastModified.UTC(), seeker)
+	http.ServeContent(&cacheResponseWriter{ResponseWriter: c.Writer}, c.Request, path.Base(name), info.LastModified.UTC(), seeker)
 }
 
 func serveRemoteObject(c *gin.Context, bucket oss.StorageProvider, objectKey string) {
@@ -171,6 +186,7 @@ func serveRemoteObject(c *gin.Context, bucket oss.StorageProvider, objectKey str
 			return
 		}
 		partial := info.ContentRange != ""
+		c.Header("Cache-Control", objectCacheControl)
 		setObjectHeaders(c, info, true)
 		if partial {
 			c.Status(http.StatusPartialContent)
@@ -187,6 +203,7 @@ func serveRemoteObject(c *gin.Context, bucket oss.StorageProvider, objectKey str
 	}
 	defer func() { _ = reader.Close() }()
 	partial := info.ContentRange != ""
+	c.Header("Cache-Control", objectCacheControl)
 	setObjectHeaders(c, info, true)
 	if partial {
 		c.Status(http.StatusPartialContent)
@@ -242,6 +259,7 @@ func handleRemoteObjectError(c *gin.Context, bucket oss.StorageProvider, objectK
 		setObjectHeaders(c, info, false)
 	}
 	if errors.Is(err, oss.ErrNotModified) {
+		c.Header("Cache-Control", objectCacheControl)
 		c.Status(http.StatusNotModified)
 	} else {
 		c.AbortWithStatus(http.StatusRequestedRangeNotSatisfiable)
@@ -298,6 +316,7 @@ func handleObjectError(c *gin.Context, err error) {
 	case errors.Is(err, oss.ErrInvalidObjectKey):
 		c.AbortWithStatus(http.StatusBadRequest)
 	case errors.Is(err, oss.ErrNotModified):
+		c.Header("Cache-Control", objectCacheControl)
 		c.Status(http.StatusNotModified)
 	case errors.Is(err, oss.ErrPreconditionFailed):
 		c.AbortWithStatus(http.StatusPreconditionFailed)
