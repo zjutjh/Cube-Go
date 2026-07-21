@@ -1,6 +1,9 @@
 package main
 
 import (
+	"context"
+	"strings"
+
 	"cube-go/internal/midwares"
 	"cube-go/internal/routes"
 	"cube-go/pkg/config"
@@ -22,9 +25,17 @@ func main() {
 	r.NoMethod(midwares.HandleNotFound)
 	r.NoRoute(midwares.HandleNotFound)
 	log.Init()
-	if err := oss.Init(); err != nil {
+	if strings.TrimSpace(config.Config.GetString("oss.adminKey")) == "" {
+		zap.L().Fatal("oss.adminKey must not be empty")
+	}
+	if err := oss.Init(context.Background()); err != nil {
 		zap.L().Fatal("Init OSS failed", zap.Error(err))
 	}
+	defer func() {
+		if err := oss.Close(); err != nil {
+			zap.L().Error("Close OSS failed", zap.Error(err))
+		}
+	}()
 	routes.Init(r)
 	server.Run(r, ":"+config.Config.GetString("server.port"))
 }

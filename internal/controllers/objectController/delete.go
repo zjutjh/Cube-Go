@@ -1,10 +1,7 @@
 package objectController
 
 import (
-	"errors"
-
 	"cube-go/internal/apiException"
-	"cube-go/internal/services/objectService"
 	"cube-go/pkg/oss"
 	"cube-go/pkg/response"
 
@@ -31,15 +28,18 @@ func DeleteFile(c *gin.Context) {
 		return
 	}
 
-	target := objectService.CleanLocation(data.ObjectKey)
-	if target == "" { // 拦截删除根目录的请求
-		apiException.AbortWithException(c, apiException.ParamError, nil)
+	target, isDir, err := oss.NormalizeObjectKey(data.ObjectKey, false)
+	if err != nil {
+		apiException.AbortWithException(c, apiException.ParamError, err)
 		return
 	}
+	if isDir {
+		target += "/"
+	}
 
-	err = bucket.DeleteObject(target)
-	if errors.Is(err, oss.ErrResourceNotExists) {
-		apiException.AbortWithException(c, apiException.ResourceNotFound, err)
+	err = bucket.DeleteObject(c.Request.Context(), target)
+	if err == oss.ErrInvalidObjectKey {
+		apiException.AbortWithException(c, apiException.ParamError, err)
 		return
 	}
 	if err != nil {

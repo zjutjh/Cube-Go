@@ -1,8 +1,8 @@
 package oss
 
 import (
+	"context"
 	"errors"
-	"sync"
 
 	"cube-go/pkg/config"
 )
@@ -16,9 +16,8 @@ type bucketConfigElement struct {
 }
 
 // Buckets 全局桶管理器
-var Buckets = BucketManager{
+var Buckets = &BucketManager{
 	buckets: make(map[string]StorageProvider),
-	RWMutex: sync.RWMutex{},
 }
 
 var (
@@ -27,8 +26,8 @@ var (
 )
 
 // Init 初始化OSS
-func Init() error {
-	err := initS3Connections()
+func Init(ctx context.Context) error {
+	connections, err := initS3Connections(ctx)
 	if err != nil {
 		return err
 	}
@@ -39,20 +38,38 @@ func Init() error {
 		return err
 	}
 
+	buckets := make(map[string]StorageProvider, len(cfgList))
+	manager := &BucketManager{buckets: buckets}
 	for _, c := range cfgList {
+		if _, exists := buckets[c.Name]; exists {
+			_ = manager.Close()
+			return ErrBucketAlreadyExists
+		}
+
+		var provider StorageProvider
 		if c.Type == "s3" {
-			err := Buckets.AddBucket(c.Name, NewS3StorageProvider(c.Target, c.BucketName))
-			if err != nil {
-				return err
+			client, exists := connections[c.Target]
+			if !exists {
+				_ = manager.Close()
+				return ErrConnectionNotFound
 			}
+			provider = NewS3StorageProvider(client, c.BucketName)
 		} else if c.Type == "local" {
-			err := Buckets.AddBucket(c.Name, NewLocalStorageProvider(c.Path))
+			provider, err = NewLocalStorageProvider(c.Path)
 			if err != nil {
+				_ = manager.Close()
 				return err
 			}
 		} else {
+			_ = manager.Close()
 			return ErrUnknownBucketType
 		}
+		buckets[c.Name] = provider
 	}
+	Buckets = manager
 	return nil
+}
+
+func Close() error {
+	return Buckets.Close()
 }

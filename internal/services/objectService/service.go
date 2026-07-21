@@ -2,6 +2,10 @@ package objectService
 
 import (
 	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
@@ -69,42 +73,56 @@ func ConvertToWebP(reader io.Reader) (*bytes.Reader, error) {
 }
 
 // GetThumbnail 获取缩略图
-func GetThumbnail(bucket string, objectKey string) (io.ReadCloser, *oss.GetObjectInfo, error) {
-	filename := bucket + "-" + objectKey
-	cachePath := filepath.Join(config.Config.GetString("oss.thumbnailDir"), filename+".jpg")
+func GetThumbnail(ctx context.Context, bucket string, objectKey string) (io.ReadCloser, *oss.GetObjectInfo, error) {
+	provider, err := oss.Buckets.GetBucket(bucket)
+	if err != nil {
+		return nil, nil, err
+	}
+	sourceInfo, err := provider.StatObject(ctx, objectKey, oss.GetObjectOptions{})
+	if err != nil {
+		return nil, nil, err
+	}
+	cacheKey := thumbnailCacheKey(bucket, objectKey, sourceInfo)
+	cachePath := filepath.Join(config.Config.GetString("oss.thumbnailDir"), cacheKey+".jpg")
 
 	// 尝试从缓存中读取
-	if reader, info, err := readFromCache(cachePath); err == nil {
+	if reader, info, err := readFromCache(cachePath, sourceInfo, cacheKey); err == nil {
 		return reader, info, nil
 	}
 
 	// 并发生成锁
 	first, done := waitForPath(cachePath)
+	defer done()
+	if reader, info, err := readFromCache(cachePath, sourceInfo, cacheKey); err == nil {
+		return reader, info, nil
+	}
 	if first {
-		// 第一个进来的负责生成缩略图
-		if err := generateThumbnail(bucket, objectKey, cachePath); err != nil {
+		if err := generateThumbnail(ctx, provider, objectKey, cachePath, sourceInfo); err != nil {
 			return nil, nil, err
 		}
 	}
-	defer done()
 
-	return readFromCache(cachePath)
+	return readFromCache(cachePath, sourceInfo, cacheKey)
 }
 
 // generateThumbnail 生成缩略图并写入缓存
-func generateThumbnail(bucket, objectKey, cachePath string) error {
-	// 从 OSS 获取源文件
-	provider, err := oss.Buckets.GetBucket(bucket)
-	if err != nil {
-		return err
-	}
-	object, _, err := provider.GetObject(objectKey)
+func generateThumbnail(ctx context.Context, provider oss.StorageProvider, objectKey, cachePath string, sourceInfo *oss.GetObjectInfo) error {
+	object, actualInfo, err := provider.GetObject(ctx, objectKey, oss.GetObjectOptions{
+		Conditions: oss.ObjectConditions{IfMatch: sourceInfo.ETag},
+	})
 	if err != nil {
 		return err
 	}
 	defer func() {
 		_ = object.Close()
 	}()
+	if sourceInfo.ETag != "" {
+		if actualInfo.ETag != sourceInfo.ETag {
+			return oss.ErrPreconditionFailed
+		}
+	} else if actualInfo.ContentLength != sourceInfo.ContentLength || !actualInfo.LastModified.Equal(sourceInfo.LastModified) {
+		return oss.ErrPreconditionFailed
+	}
 
 	// 解码图片
 	img, err := imaging.Decode(object, imaging.AutoOrientation(true))
@@ -128,11 +146,28 @@ func generateThumbnail(bucket, objectKey, cachePath string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(cachePath, buf.Bytes(), 0644)
+	temp, err := os.CreateTemp(filepath.Dir(cachePath), ".thumbnail-*.tmp")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = temp.Close()
+		_ = os.Remove(temp.Name())
+	}()
+	if err := temp.Chmod(0644); err != nil {
+		return err
+	}
+	if _, err := temp.Write(buf.Bytes()); err != nil {
+		return err
+	}
+	if err := temp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(temp.Name(), cachePath)
 }
 
 // readFromCache 从缓存文件读取
-func readFromCache(cachePath string) (io.ReadCloser, *oss.GetObjectInfo, error) {
+func readFromCache(cachePath string, sourceInfo *oss.GetObjectInfo, cacheKey string) (io.ReadCloser, *oss.GetObjectInfo, error) {
 	stat, err := os.Stat(cachePath)
 	if err != nil {
 		return nil, nil, err
@@ -144,9 +179,18 @@ func readFromCache(cachePath string) (io.ReadCloser, *oss.GetObjectInfo, error) 
 	info := &oss.GetObjectInfo{
 		ContentType:   "image/jpeg",
 		ContentLength: stat.Size(),
-		LastModified:  stat.ModTime(),
+		AcceptRanges:  "bytes",
+		ETag:          `"` + cacheKey + `"`,
+		LastModified:  sourceInfo.LastModified,
 	}
 	return file, info, nil
+}
+
+func thumbnailCacheKey(bucket, objectKey string, info *oss.GetObjectInfo) string {
+	hash := sha256.New()
+	_, _ = fmt.Fprintf(hash, "jpeg-v1\x00%s\x00%s\x00%s\x00%d\x00%d\x00%d\x00%d", bucket, objectKey, info.ETag,
+		info.LastModified.UTC().UnixNano(), info.ContentLength, maxLongEdge, config.Config.GetInt("oss.thumbnailQuality"))
+	return hex.EncodeToString(hash.Sum(nil))
 }
 
 // waitForPath 路径并发锁

@@ -80,7 +80,11 @@ func UploadFile(c *gin.Context) {
 
 	// 上传文件
 	objectKey := objectService.GenerateObjectKey(data.Location, name, ext)
-	err = bucket.SaveObject(reader, objectKey)
+	err = bucket.SaveObject(c.Request.Context(), reader, objectKey)
+	if errors.Is(err, oss.ErrInvalidObjectKey) {
+		apiException.AbortWithException(c, apiException.ParamError, err)
+		return
+	}
 	if errors.Is(err, oss.ErrFileAlreadyExists) {
 		apiException.AbortWithException(c, apiException.FileAlreadyExists, err)
 		return

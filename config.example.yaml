@@ -24,7 +24,6 @@ s3: # 此处可挂载多个 S3 连接
     accessKeyId: "YOUR_ACCESS_KEY"
     secretAccessKey: "YOUR_SECRET_KEY"
     region: "cn"  # 如果不知道就随便填
-    useSSL: false
     usePathStyle: true  # 参考服务商设置
 
 oss:

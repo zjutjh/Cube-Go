@@ -2,13 +2,13 @@ package oss
 
 import (
 	"errors"
-	"sync"
+	"io"
+	"sort"
 )
 
 // BucketManager 存储桶管理器
 type BucketManager struct {
 	buckets map[string]StorageProvider
-	sync.RWMutex
 }
 
 // 定义存储桶相关错误
@@ -17,21 +17,8 @@ var (
 	ErrBucketNotFound      = errors.New("bucket not found")
 )
 
-// AddBucket 添加存储桶
-func (m *BucketManager) AddBucket(name string, c StorageProvider) error {
-	m.RWMutex.Lock()
-	defer m.RWMutex.Unlock()
-	if _, ok := m.buckets[name]; ok {
-		return ErrBucketAlreadyExists
-	}
-	m.buckets[name] = c
-	return nil
-}
-
 // GetBucket 获取存储桶
 func (m *BucketManager) GetBucket(name string) (StorageProvider, error) {
-	m.RWMutex.RLock()
-	defer m.RWMutex.RUnlock()
 	if c, ok := m.buckets[name]; ok {
 		return c, nil
 	}
@@ -40,11 +27,20 @@ func (m *BucketManager) GetBucket(name string) (StorageProvider, error) {
 
 // GetBucketList 获取存储桶列表
 func (m *BucketManager) GetBucketList() []string {
-	m.RWMutex.RLock()
-	defer m.RWMutex.RUnlock()
 	list := make([]string, 0, len(m.buckets))
 	for k := range m.buckets {
 		list = append(list, k)
 	}
+	sort.Strings(list)
 	return list
+}
+
+func (m *BucketManager) Close() error {
+	var errs []error
+	for _, bucket := range m.buckets {
+		if closer, ok := bucket.(io.Closer); ok {
+			errs = append(errs, closer.Close())
+		}
+	}
+	return errors.Join(errs...)
 }

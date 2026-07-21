@@ -1,7 +1,11 @@
 package oss
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -15,172 +19,233 @@ import (
 
 // LocalStorageProvider 本地存储提供者
 type LocalStorageProvider struct {
-	path string
+	root *os.Root
 }
 
 // NewLocalStorageProvider 创建一个本地存储提供者
-func NewLocalStorageProvider(p string) StorageProvider {
-	folder := filepath.Join("./", p)
-	_ = os.MkdirAll(folder, os.ModePerm)
-
-	return &LocalStorageProvider{
-		path: folder,
+func NewLocalStorageProvider(p string) (*LocalStorageProvider, error) {
+	folder := filepath.Join(".", p)
+	if err := os.MkdirAll(folder, 0755); err != nil {
+		return nil, err
 	}
+	root, err := os.OpenRoot(folder)
+	if err != nil {
+		return nil, err
+	}
+	return &LocalStorageProvider{root: root}, nil
+}
+
+func (p *LocalStorageProvider) Close() error {
+	return p.root.Close()
 }
 
 // SaveObject 保存对象到本地存储
-func (p *LocalStorageProvider) SaveObject(reader io.ReadSeeker, objectKey string) error {
-	// 根据 objectKey 解析出文件的路径
-	relativePath := filepath.Join(p.path, objectKey)
+func (p *LocalStorageProvider) SaveObject(ctx context.Context, reader io.ReadSeeker, objectKey string) error {
+	key, isDir, err := NormalizeObjectKey(objectKey, false)
+	if err != nil || isDir {
+		return ErrInvalidObjectKey
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if dir := path.Dir(key); dir != "." {
+		if err := p.root.MkdirAll(dir, 0755); err != nil {
+			return err
+		}
+	}
 
-	// 检查文件是否已经存在
-	_, err := os.Stat(relativePath)
-	if err == nil {
+	outFile, err := p.root.OpenFile(key, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if errors.Is(err, fs.ErrExist) {
 		return ErrFileAlreadyExists
 	}
-
-	// 创建文件夹，如果文件夹不存在
-	err = os.MkdirAll(filepath.Dir(relativePath), os.ModePerm)
 	if err != nil {
 		return err
 	}
-
-	// 创建文件
-	outFile, err := os.Create(relativePath)
-	if err != nil {
+	removePartial := func() {
+		_ = outFile.Close()
+		_ = p.root.Remove(key)
+	}
+	if _, err = io.Copy(outFile, reader); err != nil {
+		removePartial()
+		return err
+	}
+	if err = ctx.Err(); err != nil {
+		removePartial()
 		return err
 	}
 
-	// 写入文件
-	_, err = io.Copy(outFile, reader)
-	if err != nil {
-		return err
-	}
-	_ = outFile.Close()
-
-	// 尝试保存 MIME 类型到 xattr
 	if xattr.XATTR_SUPPORTED {
-		_, _ = reader.Seek(0, io.SeekStart)
-		mime, err := mimetype.DetectReader(reader)
-		if err == nil {
-			_ = xattr.Set(relativePath, "user.mimetype", []byte(mime.String()))
+		if _, err := reader.Seek(0, io.SeekStart); err == nil {
+			if mime, err := mimetype.DetectReader(reader); err == nil {
+				_ = xattr.FSet(outFile, "user.mimetype", []byte(mime.String()))
+			}
 		}
+	}
+	if err = outFile.Close(); err != nil {
+		_ = p.root.Remove(key)
+		return err
 	}
 	return nil
 }
 
-// DeleteObject 删除对象
-func (p *LocalStorageProvider) DeleteObject(objectKey string) error {
-	// 根据 objectKey 解析出文件的路径
-	relativePath := filepath.Join(p.path, objectKey)
-
-	// 检查文件是否存在
-	_, err := os.Stat(relativePath)
-	if os.IsNotExist(err) {
-		return ErrResourceNotExists
-	}
-
-	// 删除文件
-	err = os.RemoveAll(relativePath)
+// DeleteObject 删除对象，目标不存在时仍视为成功。
+func (p *LocalStorageProvider) DeleteObject(ctx context.Context, objectKey string) error {
+	key, _, err := NormalizeObjectKey(objectKey, false)
 	if err != nil {
 		return err
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := p.root.RemoveAll(key); err != nil {
+		return err
+	}
 
-	// 如果文件夹为空则尝试删除文件夹
-	dir := filepath.Dir(relativePath)
-	if dir != p.path {
-		_ = os.Remove(dir)
+	for dir := path.Dir(key); dir != "."; dir = path.Dir(dir) {
+		if err := p.root.Remove(dir); err != nil {
+			break
+		}
 	}
 	return nil
 }
 
 // GetObject 获取对象
-func (p *LocalStorageProvider) GetObject(objectKey string) (io.ReadCloser, *GetObjectInfo, error) {
-	// 根据 objectKey 解析出文件路径
-	relativePath := filepath.Join(p.path, objectKey)
-
-	// 检查文件是否存在
-	stat, err := os.Stat(relativePath)
-	if os.IsNotExist(err) || stat.IsDir() {
+func (p *LocalStorageProvider) GetObject(ctx context.Context, objectKey string, _ GetObjectOptions) (io.ReadCloser, *GetObjectInfo, error) {
+	key, isDir, err := NormalizeObjectKey(objectKey, false)
+	if err != nil || isDir {
+		return nil, nil, ErrInvalidObjectKey
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
+	file, err := p.root.Open(key)
+	if os.IsNotExist(err) {
 		return nil, nil, ErrResourceNotExists
 	}
 	if err != nil {
 		return nil, nil, err
 	}
-
-	info := &GetObjectInfo{
-		ContentLength: stat.Size(),
-		ContentType:   getMimeType(relativePath),
-		LastModified:  stat.ModTime(),
-	}
-
-	// 读取文件
-	file, err := os.Open(relativePath)
+	info, err := objectInfoFromFile(file)
 	if err != nil {
+		_ = file.Close()
 		return nil, nil, err
+	}
+	if info == nil {
+		_ = file.Close()
+		return nil, nil, ErrResourceNotExists
 	}
 	return file, info, nil
 }
 
+func (p *LocalStorageProvider) StatObject(ctx context.Context, objectKey string, _ GetObjectOptions) (*GetObjectInfo, error) {
+	reader, info, err := p.GetObject(ctx, objectKey, GetObjectOptions{})
+	if err != nil {
+		return nil, err
+	}
+	_ = reader.Close()
+	return info, nil
+}
+
 // GetFileList 获取文件列表
-func (p *LocalStorageProvider) GetFileList(prefix string) ([]FileListElement, error) {
-	filePath := filepath.Join(p.path, prefix)
-	stat, err := os.Stat(filePath)
+func (p *LocalStorageProvider) GetFileList(ctx context.Context, prefix string) ([]FileListElement, error) {
+	key, _, err := NormalizeObjectKey(prefix, true)
+	if err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	target := key
+	if target == "" {
+		target = "."
+	}
+	stat, err := p.root.Stat(target)
 	if os.IsNotExist(err) {
 		return []FileListElement{}, nil
+	}
+	if err != nil {
+		return nil, err
 	}
 	if !stat.IsDir() {
 		return nil, ErrPathIsNotDir
 	}
 
-	fileList, err := os.ReadDir(filePath)
+	entries, err := fs.ReadDir(p.root.FS(), target)
 	if err != nil {
 		return nil, err
 	}
-
-	list := make([]FileListElement, 0, len(fileList))
-	for _, file := range fileList {
-		fileInfo, err := file.Info()
+	list := make([]FileListElement, 0, len(entries))
+	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		fileInfo, err := entry.Info()
 		if err != nil {
 			zap.L().Error("获取文件信息错误", zap.Error(err))
 			continue
 		}
-
-		key := path.Join(prefix, fileInfo.Name())
-		if file.IsDir() {
-			key += "/"
+		objectKey := path.Join(key, fileInfo.Name())
+		if entry.IsDir() {
+			objectKey += "/"
 		}
 		list = append(list, FileListElement{
 			Name:         fileInfo.Name(),
 			Size:         fileInfo.Size(),
-			Type:         getLocalFileType(filepath.Join(filePath, fileInfo.Name()), file.IsDir()),
+			Type:         p.getLocalFileType(objectKey, entry.IsDir()),
 			LastModified: fileInfo.ModTime().Format(time.RFC3339),
-			ObjectKey:    key,
+			ObjectKey:    objectKey,
 		})
 	}
 	return list, nil
 }
 
-func getMimeType(filePath string) string {
+func objectInfoFromFile(file *os.File) (*GetObjectInfo, error) {
+	stat, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if stat.IsDir() {
+		return nil, nil
+	}
+	return &GetObjectInfo{
+		ContentType:   getMimeType(file),
+		ContentLength: stat.Size(),
+		AcceptRanges:  "bytes",
+		ETag:          fmt.Sprintf(`W/"%x-%x"`, stat.ModTime().UnixNano(), stat.Size()),
+		LastModified:  stat.ModTime(),
+	}, nil
+}
+
+func getMimeType(file *os.File) string {
 	if xattr.XATTR_SUPPORTED {
-		t, err := xattr.Get(filePath, "user.mimetype")
-		if err == nil && len(t) > 0 {
-			return string(t)
+		if value, err := xattr.FGet(file, "user.mimetype"); err == nil && len(value) > 0 {
+			return string(value)
 		}
 	}
-	mime, err := mimetype.DetectFile(filePath)
+	_, _ = file.Seek(0, io.SeekStart)
+	mime, err := mimetype.DetectReader(file)
+	_, _ = file.Seek(0, io.SeekStart)
 	if err != nil {
 		return "application/octet-stream"
 	}
 	return mime.String()
 }
 
-func getLocalFileType(filePath string, isDir bool) string {
+func (p *LocalStorageProvider) getLocalFileType(objectKey string, isDir bool) string {
 	if isDir {
 		return "dir"
 	}
+	key, _, err := NormalizeObjectKey(objectKey, false)
+	if err != nil {
+		return "binary"
+	}
+	file, err := p.root.Open(key)
+	if err != nil {
+		return "binary"
+	}
+	defer func() { _ = file.Close() }()
 
-	mimeType := getMimeType(filePath)
+	mimeType := getMimeType(file)
 	switch {
 	case strings.HasPrefix(mimeType, "text/"):
 		return "text"
