@@ -20,7 +20,7 @@ func InitCORS() gin.HandlerFunc {
 		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{"GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Key", "Range", "If-Match", "If-None-Match", "If-Modified-Since", "If-Unmodified-Since", "If-Range"},
-		ExposeHeaders:    []string{"Accept-Ranges", "Content-Range", "ETag"},
+		ExposeHeaders:    []string{"Accept-Ranges", "Content-Range", "Content-Disposition", "ETag"},
 		AllowCredentials: false,
 		MaxAge:           12 * time.Hour,
 	})

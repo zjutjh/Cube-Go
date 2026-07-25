@@ -33,6 +33,7 @@ oss:
   thumbnailDir: "./thumbnail_cache"  # 缓存目录
   thumbnailQuality: 85  # 缩略图质量（0-100）
   thumbnailLongEdge: 640  # 缩略图长边像素
+  thumbnailMinSizeKB: 100  # 小于该大小的图片直接返回原图，设为 0 则禁用
 
 log:
   disableStacktrace: false # 是否禁用堆栈跟踪

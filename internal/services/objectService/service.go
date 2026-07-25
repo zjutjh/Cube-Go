@@ -31,6 +31,8 @@ var SizeLimit = humanize.MiByte * config.Config.GetInt64("oss.limit")
 
 var maxLongEdge = config.Config.GetInt("oss.thumbnailLongEdge")
 
+var minThumbnailSourceSize = humanize.KiByte * config.Config.GetInt64("oss.thumbnailMinSizeKB")
+
 var invalidCharRegex = regexp.MustCompile(`[:*?"<>|]`)
 
 var genLocks sync.Map
@@ -73,36 +75,40 @@ func ConvertToWebP(reader io.Reader) (*bytes.Reader, error) {
 }
 
 // GetThumbnail 获取缩略图
-func GetThumbnail(ctx context.Context, bucket string, objectKey string) (io.ReadCloser, *oss.GetObjectInfo, error) {
+func GetThumbnail(ctx context.Context, bucket string, objectKey string) (io.ReadCloser, *oss.GetObjectInfo, bool, error) {
 	provider, err := oss.Buckets.GetBucket(bucket)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 	sourceInfo, err := provider.StatObject(ctx, objectKey, oss.GetObjectOptions{})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
+	}
+	if minThumbnailSourceSize > 0 && sourceInfo.ContentLength >= 0 && sourceInfo.ContentLength < minThumbnailSourceSize && strings.HasPrefix(sourceInfo.ContentType, "image/") {
+		return nil, sourceInfo, true, nil
 	}
 	cacheKey := thumbnailCacheKey(bucket, objectKey, sourceInfo)
 	cachePath := filepath.Join(config.Config.GetString("oss.thumbnailDir"), cacheKey+".jpg")
 
 	// 尝试从缓存中读取
 	if reader, info, err := readFromCache(cachePath, sourceInfo, cacheKey); err == nil {
-		return reader, info, nil
+		return reader, info, false, nil
 	}
 
 	// 并发生成锁
 	first, done := waitForPath(cachePath)
 	defer done()
 	if reader, info, err := readFromCache(cachePath, sourceInfo, cacheKey); err == nil {
-		return reader, info, nil
+		return reader, info, false, nil
 	}
 	if first {
 		if err := generateThumbnail(ctx, provider, objectKey, cachePath, sourceInfo); err != nil {
-			return nil, nil, err
+			return nil, nil, false, err
 		}
 	}
 
-	return readFromCache(cachePath, sourceInfo, cacheKey)
+	reader, info, err := readFromCache(cachePath, sourceInfo, cacheKey)
+	return reader, info, false, err
 }
 
 // generateThumbnail 生成缩略图并写入缓存

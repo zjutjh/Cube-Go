@@ -4,6 +4,7 @@ import (
 	"errors"
 	"image"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"path"
@@ -118,13 +119,17 @@ func serveObject(c *gin.Context, thumbnail bool) {
 		return
 	}
 	if thumbnail {
-		reader, info, err := objectService.GetThumbnail(c.Request.Context(), bucketName, objectKey)
+		reader, info, useOriginal, err := objectService.GetThumbnail(c.Request.Context(), bucketName, objectKey)
 		if err != nil {
 			handleObjectError(c, err)
 			return
 		}
-		serveSeekable(c, objectKey+".jpg", reader, info)
-		return
+		if !useOriginal {
+			filename := strings.TrimSuffix(path.Base(objectKey), path.Ext(objectKey)) + ".jpg"
+			c.Header("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": filename}))
+			serveSeekable(c, filename, reader, info)
+			return
+		}
 	}
 	if _, local := bucket.(*oss.LocalStorageProvider); local {
 		reader, info, err := bucket.GetObject(c.Request.Context(), objectKey, oss.GetObjectOptions{})
