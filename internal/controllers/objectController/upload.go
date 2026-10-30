@@ -2,11 +2,8 @@ package objectController
 
 import (
 	"errors"
-	"image"
-	"io"
 	"mime/multipart"
 	"net/http"
-	"path/filepath"
 
 	"cube-go/internal/apiException"
 	"cube-go/internal/services/objectService"
@@ -14,7 +11,6 @@ import (
 	"cube-go/pkg/response"
 
 	"github.com/gin-gonic/gin"
-	uuid "github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
@@ -47,50 +43,9 @@ func UploadFile(c *gin.Context) {
 		return
 	}
 
-	filename := data.File.Filename
-	ext := filepath.Ext(filename)             // 获取文件扩展名
-	name := filename[:len(filename)-len(ext)] // 获取去掉扩展名的文件名
-
-	// 若使用 UUID 作为文件名
-	if data.UseUUID {
-		name = uuid.NewV1().String()
-	}
-
-	file, err := data.File.Open()
+	objectKey, _, err := saveUploaded(c, bucket, data.File, data.Location, data.UseUUID, data.ConvertWebP)
 	if err != nil {
-		apiException.AbortWithException(c, apiException.UploadFileError, err)
-		return
-	}
-	defer func() { _ = file.Close() }()
-
-	// 转换到 WebP
-	var reader io.ReadSeeker = file
-	if data.ConvertWebP {
-		reader, err = objectService.ConvertToWebP(file)
-		ext = ".webp"
-		if errors.Is(err, image.ErrFormat) {
-			apiException.AbortWithException(c, apiException.FileNotImageError, err)
-			return
-		}
-		if err != nil {
-			apiException.AbortWithException(c, apiException.ServerError, err)
-			return
-		}
-	}
-
-	// 上传文件
-	objectKey := objectService.GenerateObjectKey(data.Location, name, ext)
-	err = bucket.SaveObject(c.Request.Context(), reader, objectKey)
-	if errors.Is(err, oss.ErrInvalidObjectKey) {
-		apiException.AbortWithException(c, apiException.ParamError, err)
-		return
-	}
-	if errors.Is(err, oss.ErrFileAlreadyExists) {
-		apiException.AbortWithException(c, apiException.FileAlreadyExists, err)
-		return
-	}
-	if err != nil {
-		apiException.AbortWithException(c, apiException.ServerError, err)
+		abortUploadErr(c, err)
 		return
 	}
 

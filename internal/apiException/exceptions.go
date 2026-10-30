@@ -27,6 +27,9 @@ var (
 	NoPermission        = NewError(200506, log.LevelInfo, "权限不足")
 	FileAlreadyExists   = NewError(200507, log.LevelInfo, "该文件已存在")
 	BucketNotFound      = NewError(200508, log.LevelInfo, "存储桶不存在")
+	TokenInvalid        = NewError(200509, log.LevelInfo, "凭证无效")
+	TokenExpired        = NewError(200510, log.LevelInfo, "凭证已过期")
+	InvalidLocation     = NewError(200511, log.LevelInfo, "路径不合法")
 
 	NotFound = NewError(200404, log.LevelWarn, http.StatusText(http.StatusNotFound))
 )

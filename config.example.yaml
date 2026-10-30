@@ -44,3 +44,9 @@ log:
   logMaxSize: 10           # 单个日志文件最大大小 单位: MB
   logMaxAge: 7             # 日志保留天数
   logCompress: false       # 是否压缩日志文件
+
+
+oss:
+  limit: 10  # 文件大小限制 单位: MB
+  adminKey: ""  # 管理员密钥
+  tokenKey: ""  # JWT 签名密钥，留空则回落到 adminKey
