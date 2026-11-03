@@ -63,8 +63,7 @@ func GetFileList(c *gin.Context) {
 		return
 	}
 
-	loc := objectService.CleanLocation(data.Location)
-	fileList, err := bucket.GetFileList(c.Request.Context(), loc)
+	fileList, err := bucket.GetFileList(c.Request.Context(), data.Location)
 	if errors.Is(err, oss.ErrPathIsNotDir) || errors.Is(err, oss.ErrInvalidObjectKey) {
 		apiException.AbortWithException(c, apiException.ParamError, err)
 		return

@@ -52,7 +52,10 @@ func saveUploaded(c *gin.Context, bucket oss.StorageProvider, fh *multipart.File
 		}
 	}
 
-	objectKey := objectService.GenerateObjectKey(location, name, ext)
+	objectKey, err := objectService.GenerateObjectKey(location, name, ext)
+	if err != nil {
+		return "", err
+	}
 	if err := bucket.SaveObject(c.Request.Context(), reader, objectKey); err != nil {
 		return "", err
 	}
