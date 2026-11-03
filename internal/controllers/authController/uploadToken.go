@@ -23,15 +23,14 @@ type issueForm struct {
 	UseUUID     bool   `json:"use_uuid"`
 }
 
+// UploadToken 签发直传凭证
 func UploadToken(c *gin.Context) {
 	var form issueForm
-	err := c.ShouldBindJSON(&form)
-	if err != nil {
+	if err := c.ShouldBindJSON(&form); err != nil {
 		apiException.AbortWithException(c, apiException.ParamError, err)
 		return
 	}
-	_, err = oss.Buckets.GetBucket(form.Bucket)
-	if err != nil {
+	if _, err := oss.Buckets.GetBucket(form.Bucket); err != nil {
 		apiException.AbortWithException(c, apiException.BucketNotFound, err)
 		return
 	}
@@ -40,19 +39,16 @@ func UploadToken(c *gin.Context) {
 		apiException.AbortWithException(c, apiException.InvalidLocation, err)
 		return
 	}
-	name := filepath.Base(form.Filename)
-	if name == "" || name == "." || name == "/" {
-		name = "file"
-	}
 	now := time.Now()
 	claims := models.UploadClaims{
 		Bucket:      form.Bucket,
 		Location:    loc,
-		Filename:    name,
+		Filename:    cleanFilename(form.Filename),
 		UseUUID:     form.UseUUID,
 		ConvertWebP: form.ConvertWebP,
 		RegisteredClaims: jwt.RegisteredClaims{
-			Subject:   "cube",
+			Issuer:    token.Issuer,
+			Audience:  jwt.ClaimStrings{token.AudienceUpload},
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(tokenTTL)),
 		},
@@ -67,4 +63,16 @@ func UploadToken(c *gin.Context) {
 		"token":      signed,
 		"expires_at": claims.ExpiresAt.Unix(),
 	})
+}
+
+// cleanFilename 归一化文件名，空串表示上传时沿用 multipart 里的文件名
+func cleanFilename(name string) string {
+	if name == "" {
+		return ""
+	}
+	base := filepath.Base(name)
+	if base == "." || base == ".." || base == "/" {
+		return ""
+	}
+	return base
 }

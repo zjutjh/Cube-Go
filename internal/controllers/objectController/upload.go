@@ -43,7 +43,8 @@ func UploadFile(c *gin.Context) {
 		return
 	}
 
-	objectKey, _, err := saveUploaded(c, bucket, data.File, data.Location, data.UseUUID, data.ConvertWebP)
+	name, ext := resolveName(data.File, "", data.UseUUID, 1, 1)
+	objectKey, err := saveUploaded(c, bucket, data.File, data.Location, name, ext, data.ConvertWebP)
 	if err != nil {
 		abortUploadErr(c, err)
 		return

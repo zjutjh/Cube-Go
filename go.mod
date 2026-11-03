@@ -13,6 +13,7 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.12
 	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-gonic/gin v1.11.0
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/kolesa-team/go-webp v1.0.6-0.20260124152243-bf7924d9a4e2
 	github.com/pkg/xattr v0.4.12
 	github.com/satori/go.uuid v1.2.0
@@ -48,7 +49,6 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
-	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect

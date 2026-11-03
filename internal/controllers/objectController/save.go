@@ -5,6 +5,7 @@ import (
 	"cube-go/internal/services/objectService"
 	"cube-go/pkg/oss"
 	"errors"
+	"fmt"
 	"image"
 	"io"
 	"mime/multipart"
@@ -15,20 +16,30 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
-func saveUploaded(c *gin.Context, bucket oss.StorageProvider, fh *multipart.FileHeader,
-	location string, useUUID, convertWebP bool) (string, int64, error) {
-
-	filename := fh.Filename
-	ext := filepath.Ext(filename)
-	name := strings.TrimSuffix(filename, ext)
-
+// resolveName 解析实际写入的文件名（不含扩展名）与扩展名。
+// want 为上传凭证指定的文件名，为空时沿用 multipart 里的文件名；
+// useUUID 打开时忽略两者直接用 uuid；多文件上传时 want 追加 -序号（从 1 开始）。
+func resolveName(fh *multipart.FileHeader, want string, useUUID bool, index, total int) (string, string) {
+	ext := filepath.Ext(fh.Filename)
+	name := strings.TrimSuffix(filepath.Base(fh.Filename), ext)
 	if useUUID {
-		name = uuid.NewV1().String()
+		return uuid.NewV1().String(), ext
 	}
+	if want != "" {
+		name = strings.TrimSuffix(want, filepath.Ext(want))
+		if total > 1 {
+			name = fmt.Sprintf("%s-%d", name, index+1)
+		}
+	}
+	return name, ext
+}
+
+func saveUploaded(c *gin.Context, bucket oss.StorageProvider, fh *multipart.FileHeader,
+	location, name, ext string, convertWebP bool) (string, error) {
 
 	file, err := fh.Open()
 	if err != nil {
-		return "", 0, err
+		return "", err
 	}
 	defer func() { _ = file.Close() }()
 
@@ -37,16 +48,16 @@ func saveUploaded(c *gin.Context, bucket oss.StorageProvider, fh *multipart.File
 		reader, err = objectService.ConvertToWebP(file)
 		ext = ".webp"
 		if err != nil {
-			return "", 0, err
+			return "", err
 		}
 	}
 
 	objectKey := objectService.GenerateObjectKey(location, name, ext)
 	if err := bucket.SaveObject(c.Request.Context(), reader, objectKey); err != nil {
-		return "", 0, err
+		return "", err
 	}
 
-	return objectKey, fh.Size, nil
+	return objectKey, nil
 }
 
 func abortUploadErr(c *gin.Context, err error) {

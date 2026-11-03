@@ -29,7 +29,12 @@ func TokenAuth() gin.HandlerFunc {
 		claims := &models.UploadClaims{}
 		_, err := jwt.ParseWithClaims(raw, claims, func(t *jwt.Token) (any, error) {
 			return token.Key(), nil
-		}, jwt.WithValidMethods([]string{"HS256"}))
+		},
+			jwt.WithValidMethods([]string{"HS256"}),
+			jwt.WithIssuer(token.Issuer),
+			jwt.WithAudience(token.AudienceUpload),
+			jwt.WithExpirationRequired(),
+		)
 		if err != nil {
 			if errors.Is(err, jwt.ErrTokenExpired) {
 				apiException.AbortWithException(c, apiException.TokenExpired, err)
