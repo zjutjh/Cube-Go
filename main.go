@@ -28,9 +28,6 @@ func main() {
 	if strings.TrimSpace(config.Config.GetString("oss.adminKey")) == "" {
 		zap.L().Fatal("oss.adminKey must not be empty")
 	}
-	if strings.TrimSpace(config.Config.GetString("oss.tokenKey")) == "" {
-		zap.L().Warn("oss.tokenKey 未配置，上传凭证与回执将使用 oss.adminKey 签名")
-	}
 	if err := oss.Init(context.Background()); err != nil {
 		zap.L().Fatal("Init OSS failed", zap.Error(err))
 	}

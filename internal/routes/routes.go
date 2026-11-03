@@ -14,7 +14,7 @@ func Init(r *gin.Engine) {
 	{
 		api.GET("/buckets", midwares.Auth, objectController.GetBucketList)
 		api.POST("/upload", midwares.Auth, objectController.UploadFile)
-		api.POST("/upload/token", midwares.TokenAuth(), objectController.UploadWithToken)
+		api.POST("/upload/token", midwares.TokenAuth, objectController.UploadWithToken)
 		api.POST("/auth/upload-token", midwares.Auth, authController.UploadToken)
 		api.GET("/files", midwares.Auth, objectController.GetFileList)
 		api.DELETE("/delete", midwares.Auth, objectController.DeleteFile)

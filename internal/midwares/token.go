@@ -3,7 +3,7 @@ package midwares
 import (
 	"cube-go/internal/apiException"
 	"cube-go/internal/models"
-	"cube-go/internal/token"
+	"cube-go/pkg/config"
 	"errors"
 	"strings"
 
@@ -11,40 +11,26 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-const bearerPrefix = "Bearer "
-
-func TokenAuth() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		auth := c.GetHeader("Authorization")
-		if !strings.HasPrefix(auth, bearerPrefix) {
-			apiException.AbortWithException(c, apiException.TokenInvalid, nil)
-			return
-		}
-		raw := strings.TrimSpace(strings.TrimPrefix(auth, bearerPrefix))
-		if raw == "" {
-			apiException.AbortWithException(c, apiException.TokenInvalid, nil)
-			return
-		}
-
-		claims := &models.UploadClaims{}
-		_, err := jwt.ParseWithClaims(raw, claims, func(t *jwt.Token) (any, error) {
-			return token.Key(), nil
-		},
-			jwt.WithValidMethods([]string{"HS256"}),
-			jwt.WithIssuer(token.Issuer),
-			jwt.WithAudience(token.AudienceUpload),
-			jwt.WithExpirationRequired(),
-		)
-		if err != nil {
-			if errors.Is(err, jwt.ErrTokenExpired) {
-				apiException.AbortWithException(c, apiException.TokenExpired, err)
-				return
-			}
-			apiException.AbortWithException(c, apiException.TokenInvalid, err)
-			return
-		}
-		c.Set("claims", claims)
-		c.Next()
-
+// TokenAuth 校验直传凭证
+func TokenAuth(c *gin.Context) {
+	raw, ok := strings.CutPrefix(strings.TrimSpace(c.GetHeader("Authorization")), "Bearer ")
+	if !ok || raw == "" {
+		apiException.AbortWithException(c, apiException.TokenInvalid, nil)
+		return
 	}
+
+	claims := &models.UploadClaims{}
+	_, err := jwt.ParseWithClaims(raw, claims, func(*jwt.Token) (any, error) {
+		return []byte(config.Config.GetString("oss.adminKey")), nil
+	}, jwt.WithValidMethods([]string{"HS256"}), jwt.WithAudience(models.AudienceUpload), jwt.WithExpirationRequired())
+	if err != nil {
+		if errors.Is(err, jwt.ErrTokenExpired) {
+			apiException.AbortWithException(c, apiException.TokenExpired, err)
+			return
+		}
+		apiException.AbortWithException(c, apiException.TokenInvalid, err)
+		return
+	}
+	c.Set("claims", claims)
+	c.Next()
 }
