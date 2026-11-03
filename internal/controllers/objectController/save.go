@@ -31,9 +31,6 @@ func resolveName(fh *multipart.FileHeader, want string, useUUID bool, index, tot
 			name = fmt.Sprintf("%s-%d", name, index+1)
 		}
 	}
-	if name == "" || name == "." || name == ".." {
-		name = "file"
-	}
 	return name, ext
 }
 
