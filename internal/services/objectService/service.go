@@ -13,7 +13,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 
@@ -33,24 +32,15 @@ var maxLongEdge = config.Config.GetInt("oss.thumbnailLongEdge")
 
 var minThumbnailSourceSize = humanize.KiByte * config.Config.GetInt64("oss.thumbnailMinSizeKB")
 
-var invalidCharRegex = regexp.MustCompile(`[:*?"<>|]`)
-
 var genLocks sync.Map
 
-// GenerateObjectKey 通过路径和文件名生成 ObjectKey
-func GenerateObjectKey(location string, filename string, fileExt string) string {
-	return path.Join(CleanLocation(location), filename+fileExt)
-}
-
-// CleanLocation 清理以避免非法路径
-func CleanLocation(location string) string {
-	isDir := strings.HasSuffix(location, "/")
-	loc := invalidCharRegex.ReplaceAllString(location, "")
-	result := strings.TrimLeft(path.Clean(loc), "./\\")
-	if isDir {
-		result += "/"
+// GenerateObjectKey 通过路径和文件名生成 ObjectKey，location 按对象键规则校验
+func GenerateObjectKey(location string, filename string, fileExt string) (string, error) {
+	loc, _, err := oss.NormalizeObjectKey(location, true)
+	if err != nil {
+		return "", err
 	}
-	return result
+	return path.Join(loc, filename+fileExt), nil
 }
 
 // ConvertToWebP 将图片转换为 WebP 格式
